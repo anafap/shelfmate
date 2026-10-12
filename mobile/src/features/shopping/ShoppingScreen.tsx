@@ -30,7 +30,7 @@ export default function ShoppingScreen() {
   }, onSuccess: refresh });
   function edit(item: ShoppingItem) { setEditing(item); setName(item.name); setQuantity(String(item.quantity ?? 1)); setUnit(item.unit ?? 'piece'); setNotes(item.notes ?? ''); setCategory(item.categoryId ?? ''); save.reset(); }
   if (!household.isPending && !household.isError && !household.data) return <HouseholdScreen />;
-  return <FoundationScreen title="Shopping" description="What does your household need next?">
+  return <FoundationScreen title="Shopping" description="What does your household need next?" compact>
     {household.isPending ? <ActivityIndicator /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></> : <>
       {!transfer && <View style={styles.card}>
         <Field label={editing ? 'Edit shopping name' : 'Quick add shopping item'} value={name} onChangeText={setName} maxLength={120} editable={!save.isPending} />

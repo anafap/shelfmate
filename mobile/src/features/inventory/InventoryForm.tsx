@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { DateField } from '@/components/DateField';
 import { Action, Field, styles } from '@/features/auth/AccountScreen';
 import { api, ApiError } from '@/lib/session';
@@ -9,7 +9,7 @@ import { Category, InventoryItem, inventoryPath } from './types';
 export function Choices({ label, values, selected, onSelect, disabled }: {
   label: string; values: { value: string; label: string }[]; selected: string; onSelect: (value: string) => void; disabled?: boolean;
 }) {
-  return <View style={{ gap: 8 }}><Text style={styles.body}>{label}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
+  return <View style={{ gap: 8 }}><Text style={styles.body}>{label}</Text><ScrollView horizontal={Platform.OS !== 'web'} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, flexWrap: Platform.OS === 'web' ? 'wrap' : 'nowrap' }}>
     {values.map(v => <Pressable key={v.value} accessibilityRole="button" accessibilityLabel={`${label}: ${v.label}`} accessibilityState={{ selected: selected === v.value, disabled }} disabled={disabled} onPress={() => onSelect(v.value)} style={{ minHeight: 48, justifyContent: 'center', padding: 12, borderRadius: 24, borderWidth: 1, borderColor: selected === v.value ? '#22634b' : '#dce6df', backgroundColor: selected === v.value ? '#22634b' : '#fff' }}><Text style={{ fontSize: 16, color: selected === v.value ? '#fff' : '#22634b' }}>{v.label}</Text></Pressable>)}
   </ScrollView></View>;
 }

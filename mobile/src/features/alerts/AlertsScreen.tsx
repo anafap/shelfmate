@@ -32,7 +32,7 @@ export default function AlertsScreen() {
     setPush(result.pushEnabled); setEditing(false);
   }, onSuccess: async () => { await Promise.all(['preferences', 'alerts', 'inventory', 'dashboard'].map(key => client.invalidateQueries({ queryKey: [key, household.data?.id] }))); } });
   if (!household.isPending && !household.isError && !household.data) return <HouseholdScreen />;
-  return <FoundationScreen title="Alerts" description="Review products approaching an entered or estimated date. In-app reminders work even when push is unavailable.">
+  return <FoundationScreen title="Alerts" description="Review products approaching an entered or estimated date. In-app reminders work even when push is unavailable." compact>
     {household.isPending ? <ActivityIndicator /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></> : <>
       <View style={styles.card}>
         <Text style={styles.heading}>Reminder preferences</Text>

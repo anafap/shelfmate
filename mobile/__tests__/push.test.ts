@@ -1,11 +1,20 @@
 import Constants from 'expo-constants';
+import { isRunningInExpoGo } from 'expo';
 import * as Notifications from 'expo-notifications';
 import { api } from '@/lib/session';
 import { registerPushDevice, syncExistingPushDevice } from '@/lib/push.native';
 jest.mock('@/lib/session', () => ({ api: jest.fn() }));
+jest.mock('expo', () => ({ isRunningInExpoGo: jest.fn(() => false) }));
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { eas: { projectId: 'test-project' } } } } }));
 jest.mock('expo-notifications', () => ({ setNotificationHandler: jest.fn(), setNotificationChannelAsync: jest.fn(), AndroidImportance: { DEFAULT: 3 }, getPermissionsAsync: jest.fn(), requestPermissionsAsync: jest.fn(), getExpoPushTokenAsync: jest.fn() }));
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => { jest.clearAllMocks(); jest.mocked(isRunningInExpoGo).mockReturnValue(false); });
+test('Expo Go skips push setup without breaking in-app alerts', async () => {
+  jest.mocked(isRunningInExpoGo).mockReturnValue(true);
+  await expect(syncExistingPushDevice()).resolves.toBeUndefined();
+  await expect(registerPushDevice()).rejects.toThrow('Push reminders require a development build.');
+  expect(Notifications.getPermissionsAsync).not.toHaveBeenCalled();
+  expect(api).not.toHaveBeenCalled();
+});
 test('permission denial never registers a token', async () => {
   jest.mocked(Notifications.getPermissionsAsync).mockResolvedValue({ granted: false } as Notifications.NotificationPermissionsStatus);
   jest.mocked(Notifications.requestPermissionsAsync).mockResolvedValue({ granted: false } as Notifications.NotificationPermissionsStatus);

@@ -1,0 +1,122 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import InventoryScreen from '@/features/inventory/InventoryScreen';
+import { InventoryForm } from '@/features/inventory/InventoryForm';
+import { Category, InventoryItem, inventoryPath } from '@/features/inventory/types';
+import { api, ApiError } from '@/lib/session';
+
+jest.mock('@/lib/session', () => ({ api: jest.fn(), ApiError: class extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status; } } }));
+jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
+jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: { id: 'home' }, isPending: false, isError: false }) }));
+const categories: Category[] = [{ id: 'other', name: 'Other', key: 'other', isSystemDefined: true }, { id: 'dairy', name: 'Dairy', key: 'dairy', isSystemDefined: true }];
+const milk: InventoryItem = {
+  id: 'milk', householdId: 'home', name: 'Milk', categoryId: 'dairy', quantity: 1, unit: 'bottle',
+  purchaseDate: null, expiryDate: '2026-10-12', expiryType: 'Printed', storageLocation: 'Fridge', notes: null,
+  status: 'Active', reminderEnabled: true, version: 'v1', expiryStatus: 'ExpiringSoon', daysRemaining: 0,
+  householdLocalDate: '2026-10-12', createdBy: 'owner', updatedBy: 'owner', createdAt: '', updatedAt: '',
+};
+let items: InventoryItem[] = [];
+function defaultApi(path: string): Promise<never> {
+  if (path === '/households/current/categories') return Promise.resolve(categories as never);
+  if (path.startsWith(`${inventoryPath}?`)) return Promise.resolve({ items, total: items.length, page: 1, pageSize: 20 } as never);
+  return Promise.resolve(milk as never);
+}
+async function setup(form = false) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
+  await render(<QueryClientProvider client={client}>{form ? <InventoryForm item={null} categories={categories} onSaved={async () => {}} onCancel={() => {}} onReload={() => {}} /> : <InventoryScreen />}</QueryClientProvider>);
+  return client;
+}
+beforeEach(() => { jest.clearAllMocks(); items = []; jest.mocked(api).mockImplementation(defaultApi); });
+test('empty inventory supports quick add without inventing an expiry date', async () => {
+  const client = await setup();
+  expect(await screen.findByText('No matching products yet')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Add product' }));
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Rice');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ name: 'Rice', quantity: 1, categoryId: 'other', unit: 'piece', expiryDate: null, expiryType: 'Unknown' }), 'POST'));
+  expect(await screen.findByText('Product saved.')).toBeTruthy(); client.clear();
+});
+test('optional purchase details preserve unknown expiry and chosen quantity/category', async () => {
+  const client = await setup(true);
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Loose produce');
+  await fireEvent.changeText(screen.getByLabelText('Quantity'), '0.5');
+  await fireEvent.press(screen.getByRole('button', { name: 'Category, unit & more details' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Unit: kg' }));
+  await fireEvent.changeText(screen.getByLabelText('Purchase date (optional, YYYY-MM-DD)'), '2026-10-12');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ quantity: 0.5, unit: 'kg', purchaseDate: '2026-10-12', expiryDate: null, expiryType: 'Unknown' }), 'POST')); client.clear();
+});
+test('estimated expiry is explicitly selected and labeled', async () => {
+  const client = await setup(true);
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Fruit');
+  await fireEvent.changeText(screen.getByLabelText('Expiry date (optional, YYYY-MM-DD)'), '2026-10-15');
+  await fireEvent.press(screen.getByRole('button', { name: 'Date type: Estimated' }));
+  expect(screen.getByText('An estimated date is an editable guide, not a verified safety deadline.')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ expiryDate: '2026-10-15', expiryType: 'Estimated' }), 'POST')); client.clear();
+});
+test('invalid calendar dates do not submit a mutation', async () => {
+  const client = await setup(true);
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Milk');
+  await fireEvent.changeText(screen.getByLabelText('Expiry date (optional, YYYY-MM-DD)'), '2026-02-30');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
+  expect(await screen.findByText('Expiry date must be a valid calendar date between 1900 and 2100.')).toBeTruthy();
+  expect(api).not.toHaveBeenCalled(); client.clear();
+});
+test('editing a stale version requires reloading and reviewing before another save', async () => {
+  items = [milk]; let latest = milk;
+  jest.mocked(api).mockImplementation(async (path, body, method) => {
+    if (method === 'PATCH') {
+      if ((body as { version: string }).version === 'v1') { latest = { ...milk, name: 'Partner edit', version: 'v2' }; items = [latest]; throw new ApiError(409, 'This item changed. Reload it and review the latest details before saving.'); }
+      return latest as never;
+    }
+    if (path === `${inventoryPath}/milk`) return latest as never;
+    return defaultApi(path);
+  });
+  const client = await setup();
+  await screen.findByRole('button', { name: 'Edit Milk' });
+  await fireEvent.press(screen.getByRole('button', { name: 'Edit Milk' }));
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'My draft');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+  expect(await screen.findByText('This item changed. Reload it and review the latest details before saving.')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Reload latest details (replaces draft)' }));
+  await waitFor(() => expect(screen.getByLabelText('Product name').props.value).toBe('Partner edit'));
+  expect(jest.mocked(api).mock.calls.filter(([, , method]) => method === 'PATCH')).toHaveLength(1);
+  await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk`, expect.objectContaining({ version: 'v2', name: 'Partner edit' }), 'PATCH')); client.clear();
+});
+test.each(['consume', 'discard'] as const)('%s requires confirmation before moving the item to history', async action => {
+  items = [milk];
+  jest.mocked(api).mockImplementation(async (path, body, method) => {
+    if (method === 'POST') { items = []; return { ...milk, status: action === 'consume' ? 'Consumed' : 'Discarded' } as never; }
+    return defaultApi(path);
+  });
+  const client = await setup();
+  await screen.findByRole('button', { name: `Mark Milk ${action === 'consume' ? 'consumed' : 'discarded'}` });
+  await fireEvent.press(screen.getByRole('button', { name: `Mark Milk ${action === 'consume' ? 'consumed' : 'discarded'}` }));
+  expect(api).not.toHaveBeenCalledWith(`${inventoryPath}/milk/${action}`, expect.anything(), 'POST');
+  await fireEvent.press(screen.getByRole('button', { name: 'Confirm move to history' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk/${action}`, { version: 'v1' }, 'POST'));
+  expect(await screen.findByText('Item moved to history.')).toBeTruthy(); client.clear();
+});
+test('search and category filters request household-scoped server results', async () => {
+  const client = await setup();
+  await screen.findByText('No matching products yet');
+  await fireEvent.changeText(screen.getByLabelText('Search products'), 'Milk');
+  await fireEvent.press(screen.getByRole('button', { name: 'Search' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Category filter: Dairy' }));
+  await waitFor(() => expect(jest.mocked(api).mock.calls.some(([path]) => path.includes('search=Milk') && path.includes('category=dairy'))).toBe(true)); client.clear();
+});
+test('network error offers a refresh and does not present fabricated inventory', async () => {
+  let offline = true;
+  jest.mocked(api).mockImplementation(async path => {
+    if (path.startsWith(`${inventoryPath}?`) && offline) throw new Error('Unable to connect. Check your connection and try again.');
+    return defaultApi(path);
+  });
+  const client = await setup();
+  expect(await screen.findByText('Unable to connect. Check your connection and try again.')).toBeTruthy();
+  expect(screen.queryByText('No matching products yet')).toBeNull();
+  offline = false;
+  await fireEvent.press(screen.getByRole('button', { name: 'Refresh inventory' }));
+  expect(await screen.findByText('No matching products yet')).toBeTruthy(); client.clear();
+});

@@ -50,7 +50,7 @@ export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
         <Text style={styles.body}>Time zone: {household.data.timeZone}</Text>
         {members.isPending ? <ActivityIndicator /> : members.isError ? <><Text style={styles.error}>{members.error.message}</Text><Action title="Retry members" onPress={() => { members.refetch(); }} /></> : members.data?.map(m => <Text key={m.userId} style={styles.body}>{m.displayName} · {m.role}</Text>)}
         {members.data?.length === 1 && <Text style={styles.body}>Your household is ready. Invite your partner from Settings.</Text>}
-        {!settings && <Text style={styles.body}>Accounts and household sharing are ready. Inventory, shopping, and reminders are coming in the next phases.</Text>}
+        {!settings && <Text style={styles.body}>Open Inventory to add and manage your household products. Shopping and reminders are coming in the next phases.</Text>}
         {settings && owner && <>
           <Text style={styles.heading}>Invite your partner</Text>
           <Field label="Partner email (optional)" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" maxLength={254} />

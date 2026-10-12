@@ -8,7 +8,7 @@ export function FoundationScreen({ title, description, children }: {
       <Text style={styles.eyebrow}>YOUR HOUSEHOLD, TOGETHER</Text>
       <Text style={styles.title} accessibilityRole="header">{title}</Text>
       <Text style={styles.body}>{description}</Text>
-      <Text style={styles.notice}>Development build · Inventory, shopping, and reminders are not available yet.</Text>
+      <Text style={styles.notice}>Development build · Shopping and reminders are not available yet.</Text>
       {children}
     </ScrollView>
   );

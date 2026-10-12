@@ -19,7 +19,7 @@ test('dashboard displays authoritative counts and estimated dates without a made
   const client = await setup();
   await screen.findByText('Active products');
   expect(screen.getByText('5')).toBeTruthy(); expect(screen.getByText('1')).toBeTruthy(); expect(screen.getByText('2')).toBeTruthy();
-  expect(screen.getByText('Coming next')).toBeTruthy();
+  expect(screen.getByText('Unavailable')).toBeTruthy();
   expect(screen.getByText('Estimated date today · review item')).toBeTruthy();
   expect(screen.getByText('An estimated date is an editable guide, not a verified safety deadline.')).toBeTruthy();
   expect(api).toHaveBeenCalledWith('/households/current/dashboard'); client.clear();

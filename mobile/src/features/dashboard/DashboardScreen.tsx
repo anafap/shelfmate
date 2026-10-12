@@ -35,7 +35,7 @@ export default function DashboardScreen() {
         <Stat label="Active products" count={data.activeCount} detail="Currently at home" />
         <Stat label="Expiring soon" count={data.expiringSoonCount} detail="Entered dates in 1–7 days" />
         <Stat label="Today or past date" count={data.expiryTodayOrPastCount} detail="Review these products" />
-        <View style={[styles.card, ui.stat]}><Text style={styles.body}>Shopping list</Text><Text style={styles.heading}>Coming next</Text><Text style={styles.body}>Shared shopping is not available yet.</Text></View>
+        <View style={[styles.card, ui.stat]}><Text style={styles.body}>Shopping list</Text>{data.shoppingListCount === null ? <Text style={styles.heading}>Unavailable</Text> : <Text style={ui.count}>{data.shoppingListCount}</Text>}<Link href="/shopping" style={ui.link}>Open shopping list</Link></View>
       </View>
       <Text style={styles.body}>Household date when loaded: {data.householdLocalDate}. Refresh to see the latest household changes.</Text>
       <View style={styles.card}>

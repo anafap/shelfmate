@@ -21,16 +21,16 @@ function dateValue(text: string, label: string): string | null {
   if (year < 1900 || year > 2100 || date.toISOString().slice(0, 10) !== value) throw new Error(`${label} must be a valid calendar date between 1900 and 2100.`);
   return value;
 }
-export function InventoryForm({ item, categories, onSaved, onCancel, onReload }: {
-  item: InventoryItem | null; categories: Category[]; onSaved: () => Promise<void>; onCancel: () => void; onReload: (item: InventoryItem) => void;
+export function InventoryForm({ item, categories, onSaved, onCancel, onReload, initial, submit, saveLabel }: {
+  item: InventoryItem | null; categories: Category[]; onSaved: () => Promise<void>; onCancel: () => void; onReload: (item: InventoryItem) => void; initial?: { name: string; quantity?: number | null; unit?: string | null; categoryId?: string | null; notes?: string | null }; submit?: (body: unknown) => Promise<unknown>; saveLabel?: string;
 }) {
-  const [name, setName] = useState(item?.name ?? ''); const [quantity, setQuantity] = useState(String(item?.quantity ?? 1));
-  const [categoryId, setCategory] = useState(item?.categoryId ?? categories.find(c => c.key === 'other')?.id ?? categories[0]?.id ?? '');
-  const [unit, setUnit] = useState(item?.unit ?? 'piece');
+  const [name, setName] = useState(item?.name ?? initial?.name ?? ''); const [quantity, setQuantity] = useState(String(item?.quantity ?? initial?.quantity ?? 1));
+  const [categoryId, setCategory] = useState(item?.categoryId ?? initial?.categoryId ?? categories.find(c => c.key === 'other')?.id ?? categories[0]?.id ?? '');
+  const [unit, setUnit] = useState(item?.unit ?? initial?.unit ?? 'piece');
   const [expiryDate, setExpiry] = useState(item?.expiryDate ?? '');
   const [expiryType, setType] = useState(item?.expiryType === 'Estimated' ? 'Estimated' : 'Printed');
   const [purchaseDate, setPurchase] = useState(item?.purchaseDate ?? '');
-  const [location, setLocation] = useState(item?.storageLocation ?? 'Home'); const [notes, setNotes] = useState(item?.notes ?? '');
+  const [location, setLocation] = useState(item?.storageLocation ?? 'Home'); const [notes, setNotes] = useState(item?.notes ?? initial?.notes ?? '');
   const [reminderEnabled, setReminder] = useState(item?.reminderEnabled ?? true); const [details, setDetails] = useState(!!item);
   const save = useMutation({ mutationFn: async () => {
     if (!name.trim()) throw new Error('Enter a product name.');
@@ -39,11 +39,12 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload }:
     const body = { name: name.trim(), quantity: Number(quantity.replace(',', '.')), categoryId, unit,
       expiryDate: date, expiryType: date ? expiryType : 'Unknown', purchaseDate: dateValue(purchaseDate, 'Purchase date'),
       storageLocation: location, notes: notes || null, reminderEnabled, ...(item ? { version: item.version } : {}) };
+    if (submit) return submit(body);
     await api(item ? `${inventoryPath}/${item.id}` : inventoryPath, body, item ? 'PATCH' : 'POST');
   }, onSuccess: onSaved });
   const reload = useMutation({ mutationFn: () => api<InventoryItem>(`${inventoryPath}/${item!.id}`), onSuccess: onReload });
   const busy = save.isPending || reload.isPending;
-  const conflict = save.error instanceof ApiError && save.error.status === 409;
+  const conflict = !!item && save.error instanceof ApiError && save.error.status === 409;
   return <View style={styles.card}>
     <Text style={styles.heading}>{item ? `Edit ${item.name}` : 'Add a product'}</Text>
     <Field label="Product name" value={name} onChangeText={setName} maxLength={120} editable={!busy} />
@@ -68,7 +69,7 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload }:
       <Action title="Reload latest details (replaces draft)" disabled={busy} onPress={() => reload.mutate()} />
     </>}
     {reload.isError && <Text accessibilityRole="alert" style={styles.error}>{reload.error.message}</Text>}
-    <Action title={busy ? 'Please wait…' : item ? 'Save changes' : 'Save product'} disabled={busy || conflict} onPress={() => save.mutate()} />
+    <Action title={busy ? 'Please wait…' : saveLabel ?? (item ? 'Save changes' : 'Save product')} disabled={busy || conflict} onPress={() => save.mutate()} />
     <Action variant="secondary" title="Cancel" disabled={busy} onPress={onCancel} />
   </View>;
 }

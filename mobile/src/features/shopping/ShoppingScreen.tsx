@@ -16,6 +16,7 @@ export default function ShoppingScreen() {
   const [quantity, setQuantity] = useState('1'); const [unit, setUnit] = useState('piece'); const [notes, setNotes] = useState(''); const [category, setCategory] = useState('');
   const [removing, setRemoving] = useState<ShoppingItem | null>(null); const [transfer, setTransfer] = useState<ShoppingItem | null>(null); const [separate, setSeparate] = useState(false);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
+  const [showPurchased, setShowPurchased] = useState(false);
   const [message, setMessage] = useState('');
   const list = useQuery({ queryKey: ['shopping', household.data?.id], queryFn: () => api<ShoppingItem[]>(path), enabled: !!household.data, retry: false });
   const categories = useQuery({ queryKey: ['categories', household.data?.id], queryFn: () => api<Category[]>('/households/current/categories'), enabled: !!household.data, retry: false });
@@ -45,12 +46,13 @@ export default function ShoppingScreen() {
         {save.isError && <Text accessibilityRole="alert" style={styles.error}>{save.error.message}</Text>}
         <Action title={editing ? 'Save shopping changes' : 'Add to shopping'} disabled={save.isPending} onPress={() => save.mutate()} />
       </View>}
-      <View style={ui.listHeader}><Text style={styles.heading}>Your list</Text><Pressable accessibilityRole="button" accessibilityLabel="Refresh shopping" disabled={list.isFetching} onPress={() => { list.refetch(); categories.refetch(); }}><Text style={ui.textAction}>{list.isFetching ? 'Refreshing…' : 'Refresh'}</Text></Pressable></View>
+      <View style={ui.listHeader}><Text style={styles.heading}>To buy</Text><Pressable accessibilityRole="button" accessibilityLabel="Refresh shopping" disabled={list.isFetching} onPress={() => { list.refetch(); categories.refetch(); }}><Text style={ui.textAction}>{list.isFetching ? 'Refreshing…' : 'Refresh'}</Text></Pressable></View>
       {list.isPending && <ActivityIndicator accessibilityLabel="Loading shopping" />}
       {list.isError && <Text accessibilityRole="alert" style={styles.error}>{list.error.message}{list.data ? ' Showing previously loaded items.' : ''}</Text>}
       {action.isError && <Text accessibilityRole="alert" style={styles.error}>{action.error.message}</Text>}
       {!!message && <Text accessibilityLiveRegion="polite" style={styles.body}>{message}</Text>}
       {!list.isPending && !list.isError && list.data?.length === 0 && <View style={styles.card}><Text style={styles.heading}>Nothing on your shopping list</Text><Text style={styles.body}>Quick add something you need at home.</Text></View>}
+      {!!list.data?.length && list.data.every(item => item.status === 'Purchased') && <Text style={styles.body}>Nothing left to buy.</Text>}
       {transfer && categories.data && <View style={{ gap: 12 }}>
         <Text style={styles.heading}>Add {transfer.name} to inventory</Text>
         <Text style={styles.body}>Check the quantity and date. Review any matching product in Inventory before adding a separate one.</Text>
@@ -58,9 +60,15 @@ export default function ShoppingScreen() {
         <InventoryForm key={transfer.version} item={null} initial={transfer} categories={categories.data} saveLabel="Transfer to inventory" onCancel={() => setTransfer(null)} onReload={() => {}} submit={body => api(`${path}/${transfer.id}/transfer-to-inventory`, { version: transfer.version, item: body, confirmSeparateItem: separate }, 'POST')} onSaved={async () => { setTransfer(null); setMessage('Purchase transferred to inventory.'); await refresh(); }} />
         <Action variant="secondary" title="Reload purchase (discards edits)" onPress={async () => { const result = await list.refetch(); const latest = result.data?.find(x => x.id === transfer.id); if (latest) { setTransfer(latest.linkedInventoryItemId ? null : latest); setSeparate(false); setMessage(latest.linkedInventoryItemId ? 'Transfer already completed.' : 'Purchase reloaded. Review before transferring.'); } }} />
       </View>}
-      {list.data?.map(item => <View key={item.id} style={ui.row}>
+      {list.data?.filter(item => item.status === 'ToBuy').map(item => renderItem(item))}
+      {!!list.data?.some(item => item.status === 'Purchased') && <View style={ui.listHeader}><Text style={styles.heading}>Purchased · {list.data.filter(item => item.status === 'Purchased').length}</Text><Pressable accessibilityRole="button" accessibilityLabel={showPurchased ? 'Hide purchased items' : 'Show purchased items'} accessibilityState={{ expanded: showPurchased }} onPress={() => setShowPurchased(!showPurchased)}><Text style={ui.textAction}>{showPurchased ? 'Hide' : 'Show'}</Text></Pressable></View>}
+      {showPurchased && list.data?.filter(item => item.status === 'Purchased').map(item => renderItem(item))}
+    </>}
+  </FoundationScreen>;
+
+  function renderItem(item: ShoppingItem) { return <View key={item.id} style={ui.row}>
         <View style={ui.rowTop}>
-          {!item.linkedInventoryItemId ? <Pressable accessibilityRole="checkbox" accessibilityLabel={item.status === 'Purchased' ? `Uncheck ${item.name}` : `Mark ${item.name} purchased`} accessibilityState={{ checked: item.status === 'Purchased', disabled: action.isPending || !!editing || !!transfer }} disabled={action.isPending || !!editing || !!transfer} style={ui.checkTarget} onPress={() => action.mutate(async () => { const result = await api<ShoppingItem>(`${path}/${item.id}/purchase`, { version: item.version, purchased: item.status !== 'Purchased', operationId: item.version }, 'POST'); if (result.status === 'Purchased') setMessage(`Purchased ${item.name}. You can add it to inventory when ready.`); })}>
+          {!item.linkedInventoryItemId ? <Pressable accessibilityRole="checkbox" accessibilityLabel={item.status === 'Purchased' ? `Uncheck ${item.name}` : `Mark ${item.name} purchased`} accessibilityState={{ checked: item.status === 'Purchased', disabled: action.isPending || !!editing || !!transfer }} disabled={action.isPending || !!editing || !!transfer} style={ui.checkTarget} onPress={() => action.mutate(async () => { const result = await api<ShoppingItem>(`${path}/${item.id}/purchase`, { version: item.version, purchased: item.status !== 'Purchased', operationId: item.version }, 'POST'); if (result.status === 'Purchased') { setShowPurchased(true); setMessage(`Purchased ${item.name}. You can add it to inventory when ready.`); } })}>
             <View style={[ui.check, item.status === 'Purchased' && ui.checked]}><Text style={ui.checkMark}>{item.status === 'Purchased' ? '✓' : ''}</Text></View>
           </Pressable> : <View style={ui.checkTarget}><View style={[ui.check, ui.checked]}><Text style={ui.checkMark}>✓</Text></View></View>}
           <View style={ui.rowContent}><Text style={[ui.itemName, item.status === 'Purchased' && ui.purchasedName]}>{item.name}</Text><Text style={styles.body}>{item.quantity ? `${item.quantity} ${item.unit ?? 'piece'}` : item.status === 'Purchased' ? 'Purchased' : 'To buy'}</Text></View>
@@ -73,9 +81,7 @@ export default function ShoppingScreen() {
           {!item.linkedInventoryItemId && <Action variant="secondary" title={`Edit shopping ${item.name}`} disabled={action.isPending || !!transfer} onPress={() => edit(item)} />}
           {removing?.id === item.id ? <><Text style={styles.body}>Remove this shopping item? Its transferred inventory record will be kept.</Text><Action variant="danger" title="Confirm shopping removal" disabled={action.isPending} onPress={() => action.mutate(async () => { await api(`${path}/${item.id}?version=${removing.version}`, undefined, 'DELETE'); setRemoving(null); setOpenItemId(null); })} /><Action variant="secondary" title="Keep shopping item" onPress={() => setRemoving(null)} /></> : <Action variant="danger" title={`Remove shopping ${item.name}`} disabled={!!editing || !!transfer || action.isPending} onPress={() => setRemoving(item)} />}
         </View>}
-      </View>)}
-    </>}
-  </FoundationScreen>;
+      </View>; }
 }
 const ui = StyleSheet.create({
   listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

@@ -46,9 +46,19 @@ test('purchase offers a separate reviewed transfer with quantity and expiry', as
 });
 test('unchecking uses the current version and an explicit false purchase action', async () => {
   items = [{ ...base, status: 'Purchased', version: 'v2' }];
-  const client = await setup(); await screen.findByRole('checkbox', { name: 'Uncheck Milk' });
+  const client = await setup(); await screen.findByRole('button', { name: 'Show purchased items' });
+  expect(screen.queryByRole('checkbox', { name: 'Uncheck Milk' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Show purchased items' }));
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Uncheck Milk' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${path}/milk/purchase`, { version: 'v2', operationId: 'v2', purchased: false }, 'POST')); client.clear();
+});
+test('purchased history stays collapsed until requested', async () => {
+  items = [base, { ...base, id: 'bread', name: 'Bread', status: 'Purchased', version: 'v2' }];
+  const client = await setup(); await screen.findByText('Milk');
+  expect(screen.getByText('Purchased · 1')).toBeTruthy();
+  expect(screen.queryByText('Bread')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Show purchased items' }));
+  expect(screen.getByText('Bread')).toBeTruthy(); client.clear();
 });
 test('secondary shopping actions stay behind item options', async () => {
   items = [base];

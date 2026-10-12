@@ -7,6 +7,8 @@ permissions:
   contents: read
 jobs:
   backend:
+    env:
+      SHELFMATE_TEST_CONNECTION: Host=localhost;Database=shelfmate_test;Username=shelfmate_test;Password=ci-only-password
     runs-on: ubuntu-latest
     services:
       postgres:

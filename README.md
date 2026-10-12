@@ -17,6 +17,7 @@ docker compose --env-file .env -f infra/compose.yaml up -d --wait
 set -a
 source .env
 set +a
+dotnet ef database update --project backend/src/ShelfMate.Infrastructure --startup-project backend/src/ShelfMate.Api
 dotnet run --project backend/src/ShelfMate.Api --no-launch-profile --urls http://0.0.0.0:5050
 ```
 
@@ -39,7 +40,7 @@ Open Home to check server/database availability. A connection failure offers ret
 
 ```sh
 dotnet build backend/ShelfMate.sln
-dotnet test backend/ShelfMate.sln
+SHELFMATE_TEST_CONNECTION="$ConnectionStrings__ShelfMate" dotnet test backend/ShelfMate.sln
 dotnet format backend/ShelfMate.sln --verify-no-changes
 cd mobile
 npm run typecheck
@@ -54,7 +55,7 @@ curl --fail http://localhost:5050/api/v1/health/live
 curl --fail http://localhost:5050/api/v1/health/ready
 ```
 
-`docker compose --env-file .env -f infra/compose.yaml stop` preserves local data. Integration tests replace database availability for deterministic HTTP assertions and also check missing configuration. CI starts real PostgreSQL and verifies API readiness separately. No domain schema exists yet; introduce explicit EF migrations with the next slice rather than using automatic schema creation.
+`docker compose --env-file .env -f infra/compose.yaml stop` preserves local data. Integration tests replace database availability for deterministic HTTP assertions and also check missing configuration. CI starts real PostgreSQL and verifies API readiness separately. Phase 1 includes an explicit account/household migration. Install the EF CLI with `dotnet tool install --global dotnet-ef --version 10.0.10`. Account integration tests require `SHELFMATE_TEST_CONNECTION` with CREATE DATABASE permission; they create and remove isolated test databases.
 
 ## Architecture and next milestone
 

@@ -8,3 +8,6 @@
 - Use first-party operational checks without authentication; expose only availability. Production requires HTTPS. HTTP instructions are for local development.
 - Future work remains as listed in AGENTS.md: barcode lookup, OCR, recipes, analytics, offline mutation queue, localization, and widgets.
 - Use host port 5433 by default because 5432 is occupied on this workstation; configure POSTGRES_PORT and connection string together. CI uses its isolated service port 5432.
+
+- Phase 1 uses database-backed opaque bearer tokens instead of JWTs: a database read per authenticated request permits immediate revocation without signing-key provisioning. Tokens have 256 bits of randomness, are stored hashed, and rotate under a row lock. Framework PasswordHasher provides password hashing. Native refresh tokens use Expo SecureStore; access tokens remain in memory. Web development sessions are memory-only.
+- MVP users belong to one household. Unique user membership and household slot (1/2) indexes enforce membership and capacity. User/household locks serialize creation/redemption. No leave/delete API is offered.

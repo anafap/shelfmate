@@ -61,7 +61,7 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
       <Field label="Storage location" value={location} onChangeText={setLocation} maxLength={80} editable={!busy} />
       <Field label="Notes (optional)" value={notes} onChangeText={setNotes} maxLength={2000} multiline editable={!busy} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}><Text style={[styles.body, { flex: 1 }]}>Allow item expiry reminders</Text><Switch accessibilityLabel="Allow item expiry reminders" disabled={busy} value={reminderEnabled} onValueChange={setReminder} /></View>
-      <Text style={styles.body}>Reminder delivery will become available in a later release.</Text>
+      <Text style={styles.body}>Reminder preferences and in-app reviews are available in Alerts. Push delivery depends on device permissions and setup.</Text>
     </>}
     {save.isError && <Text accessibilityRole="alert" style={styles.error}>{save.error.message}</Text>}
     {conflict && item && <>

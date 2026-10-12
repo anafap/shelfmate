@@ -10,7 +10,7 @@ import { api } from '@/lib/session';
 export type Dashboard = {
   householdId: string; householdName: string; householdLocalDate: string;
   activeCount: number; expiringSoonCount: number; expiryTodayOrPastCount: number;
-  shoppingListCount: number | null; useFirst: InventoryItem[];
+  shoppingListCount: number | null; expiringSoonThreshold?: number; useFirst: InventoryItem[];
 };
 export default function DashboardScreen() {
   const household = useHousehold();
@@ -33,7 +33,7 @@ export default function DashboardScreen() {
     {data && <>
       <View style={ui.stats}>
         <Stat label="Active products" count={data.activeCount} detail="Currently at home" />
-        <Stat label="Expiring soon" count={data.expiringSoonCount} detail="Entered dates in 1–7 days" />
+        <Stat label="Expiring soon" count={data.expiringSoonCount} detail={(data.expiringSoonThreshold ?? 7) > 0 ? `Entered dates in 1–${data.expiringSoonThreshold ?? 7} days` : 'No days-before alerts selected'} />
         <Stat label="Today or past date" count={data.expiryTodayOrPastCount} detail="Review these products" />
         <View style={[styles.card, ui.stat]}><Text style={styles.body}>Shopping list</Text>{data.shoppingListCount === null ? <Text style={styles.heading}>Unavailable</Text> : <Text style={ui.count}>{data.shoppingListCount}</Text>}<Link href="/shopping" style={ui.link}>Open shopping list</Link></View>
       </View>

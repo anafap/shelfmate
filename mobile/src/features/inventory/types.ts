@@ -16,5 +16,5 @@ export function expiryLabel(item: InventoryItem) {
   if (item.expiryStatus === 'Expired') return estimated ? 'Estimated date passed · review item' : 'Expired · review item';
   if (item.daysRemaining === 0) return estimated ? 'Estimated date today · review item' : 'Expiry date today · review item';
   if (item.expiryStatus === 'ExpiringSoon') return `${estimated ? 'Estimated date approaching' : 'Expiring soon'} · ${item.daysRemaining} day(s) remaining`;
-  return 'OK · entered date is more than 7 days away';
+  return 'OK · beyond your alert window';
 }

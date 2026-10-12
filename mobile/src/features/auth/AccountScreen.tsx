@@ -39,7 +39,7 @@ export const styles = StyleSheet.create({
   heading: { fontSize: 22, fontWeight: '600', color: '#193b2e' },
   body: { fontSize: 15, lineHeight: 23, color: '#52665a' },
   input: { borderWidth: 1, borderColor: '#b5c5ba', backgroundColor: '#fbfcfb', borderRadius: 10, padding: 14, minHeight: 50, fontSize: 16, color: '#193b2e' },
-  button: { minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10, backgroundColor: '#22634b', alignItems: 'center', justifyContent: 'center' },
+  button: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10, backgroundColor: '#22634b', alignItems: 'center', justifyContent: 'center' },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   secondaryButton: { backgroundColor: '#f0f5f1', borderWidth: 1, borderColor: '#dce6df' },
   secondaryText: { color: '#22634b' },

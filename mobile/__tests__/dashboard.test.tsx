@@ -28,6 +28,7 @@ test('empty household gives a useful first-product state', async () => {
   jest.mocked(api).mockResolvedValue({ ...data, activeCount: 0, expiringSoonCount: 0, expiryTodayOrPastCount: 0, useFirst: [] });
   const client = await setup();
   expect(await screen.findByText('Your shelves are ready')).toBeTruthy();
+  expect(screen.getByText('No entered dates need review today.')).toBeTruthy();
   expect(screen.getByText('Manage products in Inventory')).toBeTruthy(); client.clear();
 });
 test('unknown-only inventory is distinct from an empty household', async () => {

@@ -28,7 +28,7 @@ export default function DashboardScreen() {
       <Action variant="secondary" title="Retry dashboard" disabled={dashboard.isFetching} onPress={() => { dashboard.refetch(); }} />
     </View>}
     {data && <>
-      <View style={ui.attention}><Text style={ui.attentionCount}>{data.expiryTodayOrPastCount}</Text><View style={{ flex: 1 }}><Text style={ui.attentionTitle}>Today or past date</Text><Text style={styles.body}>Review these products and their condition.</Text></View></View>
+      <View style={[ui.attention, data.expiryTodayOrPastCount === 0 && ui.attentionClear]}><Text style={[ui.attentionCount, data.expiryTodayOrPastCount === 0 && ui.clearCount]}>{data.expiryTodayOrPastCount}</Text><View style={{ flex: 1 }}><Text style={ui.attentionTitle}>Today or past date</Text><Text style={styles.body}>{data.expiryTodayOrPastCount === 0 ? 'No entered dates need review today.' : 'Review these products and their condition.'}</Text></View></View>
       <View style={styles.card}>
         <View style={ui.toolbar}><Text accessibilityRole="header" style={[styles.heading, { flex: 1 }]}>Use First</Text><Text style={ui.sectionHint}>Nearest entered dates</Text></View>
         {data.useFirst.length === 0 ? <>
@@ -57,7 +57,9 @@ const ui = StyleSheet.create({
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
   refresh: { color: '#22634b', fontSize: 15, fontWeight: '600', padding: 12 },
   attention: { flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#fff4dc', borderRadius: 18, padding: 20 },
+  attentionClear: { backgroundColor: '#edf5ef' },
   attentionCount: { fontSize: 40, fontWeight: '700', color: '#85520c' },
+  clearCount: { color: '#22634b' },
   attentionTitle: { fontSize: 18, fontWeight: '700', color: '#193b2e' },
   sectionHint: { color: '#596b62', fontSize: 13 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

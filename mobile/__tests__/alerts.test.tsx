@@ -37,8 +37,25 @@ test('denied push permission saves opt-out while keeping in-app reviews', async 
 test('muted categories and changed offsets are saved explicitly', async () => {
   const client = await setup(); await screen.findByRole('button', { name: 'Edit reminder preferences' });
   await fireEvent.press(screen.getByRole('button', { name: 'Edit reminder preferences' }));
-  await fireEvent.changeText(screen.getByLabelText('Days before date (comma-separated, 0 means today)'), '3,1,0');
+  await fireEvent(screen.getByLabelText('7 days before'), 'valueChange', false);
+  await fireEvent.press(screen.getByRole('button', { name: 'Mute categories' }));
   await fireEvent(screen.getByLabelText('Mute Dairy'), 'valueChange', true);
   await fireEvent.press(screen.getByRole('button', { name: 'Save reminder preferences' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith('/me/notification-preferences', expect.objectContaining({ dayOffsets: [3, 1, 0], mutedCategoryIds: ['dairy'] }), 'PUT')); client.clear();
+});
+test('a custom day can be saved without comma-separated input', async () => {
+  const client = await setup(); await screen.findByRole('button', { name: 'Edit reminder preferences' });
+  await fireEvent.press(screen.getByRole('button', { name: 'Edit reminder preferences' }));
+  await fireEvent.changeText(screen.getByLabelText('Add another day before (0–365)'), '5');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save reminder preferences' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith('/me/notification-preferences', expect.objectContaining({ dayOffsets: [7, 5, 3, 1, 0] }), 'PUT')); client.clear();
+});
+test('reminder time selection saves a household local clock time', async () => {
+  const client = await setup(); await screen.findByRole('button', { name: 'Edit reminder preferences' });
+  await fireEvent.press(screen.getByRole('button', { name: 'Edit reminder preferences' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Household reminder time' }));
+  const selected = new Date(); selected.setHours(18, 30, 0, 0);
+  await fireEvent(screen.getByTestId('reminder-time-picker'), 'onValueChange', {}, selected);
+  await fireEvent.press(screen.getByRole('button', { name: 'Save reminder preferences' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith('/me/notification-preferences', expect.objectContaining({ localDeliveryTime: '18:30' }), 'PUT')); client.clear();
 });

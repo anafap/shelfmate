@@ -4,7 +4,7 @@ Shared household inventory, grocery checklist, and expiry reminders for Android 
 
 ## Current state
 
-Phases 1–3 implemented: sign-up/sign-in/sign-out, native secure session persistence and token rotation, household creation with an explicit time zone, two-member membership, and owner-managed expiring single-use invitations. Expo Router retains four tabs with household/account settings outside primary navigation. PostgreSQL migrations, real-database integration tests, mobile tests, and CI are included. Shared inventory is implemented with twelve categories, quick add/edit, search/filter/sort/pagination, consumed/discarded history, version conflicts, and server-computed household-local expiry labels. Home shows active count, upcoming dates, today/past dates, and the ten nearest-dated active products in Use First. Shopping, live sync, and reminder delivery are **not implemented**. Two-device/emulator verification remains outstanding; this is not the complete MVP. No sample household data is displayed.
+Phases 1–6 are implemented: separate accounts and two-member households, shared inventory and expiry dashboard, shared shopping with retry-safe purchase transfer, authenticated household live updates, and in-app alerts plus scheduled Expo push dispatch. Backend and mobile automated checks pass. A locally signed Android internal APK has been built and signature-verified. Two-phone acceptance remains outstanding; this is not yet a public store release. Push delivery needs an Expo project and Android Firebase credentials. No sample household data is displayed.
 
 ## Local setup
 
@@ -34,7 +34,7 @@ npm start
 
 `EXPO_PUBLIC_API_URL` is a public URL, never a secret. Use `http://localhost:5050` for iOS simulator/web, `http://10.0.2.2:5050` for Android emulator, or your computer's LAN IP for a physical phone on the same network. The API binds all interfaces for local device testing; PostgreSQL stays on loopback. Restart Expo after changing its environment. Browser origins default to `http://localhost:8081` and `http://127.0.0.1:8081`; if Expo selects another port or you use a LAN address, set `Cors__AllowedOrigins__0` to that exact web origin before starting the API. Production web hosting must configure its HTTPS origin explicitly using the same setting. HTTP is for local development; production requires HTTPS.
 
-Sign in or create your account. Home lets you create a household or enter an invitation code during onboarding, then shows your household dashboard. Open Account & household settings to generate/share or revoke a code; your partner signs in with a separate account and joins from Home. Confirm the proposed IANA time zone at household creation. Household changes can be refreshed manually; live sync comes in phase 5. Network errors offer retry, and expired sessions return to sign-in. Native sessions persist in SecureStore; web development sessions are memory-only.
+Sign in or create your account. Home lets you create a household or enter an invitation code during onboarding, then shows your household dashboard. Open Account & household settings to generate/share or revoke a code; your partner signs in with a separate account and joins from Home. Confirm the proposed IANA time zone at household creation. Household writes trigger live refetches on connected devices. Network errors offer retry, and expired sessions return to sign-in. Native sessions persist in SecureStore; web development sessions are memory-only.
 
 ## Verification
 
@@ -65,24 +65,24 @@ curl --fail http://localhost:5050/api/v1/health/ready
 
 See [architecture](docs/architecture.md), [API](docs/api.md), [decisions](docs/decisions.md), and [implementation contract](AGENTS.md).
 
-Next: phase 4, the shared shopping checklist and retry-safe purchase-to-inventory transfer, including a real dashboard shopping count. Subsequent milestones and future work are in AGENTS.md.
+Next milestone: install the signed APK on two Android phones and verify separate accounts, invitation, shared inventory/shopping changes, transfer, and reminder behavior. Then close release-hardening gaps and decide whether the target is private APK distribution or Google Play. The full milestone contract and future work are in AGENTS.md.
 
-Phase 3 verification: 47 backend tests (13 expiry unit tests plus 34 real-PostgreSQL HTTP tests) and 29 mobile tests pass. Backend cases include household isolation, concurrent edits, version conflicts, lifecycle/history/reminder flags, category/search/pagination, date validation, household time zones, leap day, daylight-saving changes, printed/estimated/unknown date handling, and dashboard counts/ordering/empty states/date changes. Mobile cases include quick add, optional details without inferred dates, estimated date labels, invalid calendar dates, conflict reload without automatic resubmission, confirmation before consume/discard, filtering, network errors, dashboard counts, empty/unknown-only households, estimated date copy, retry and stale-summary wording. Type checking, lint, C# formatting, and Expo web/iOS/Android bundle exports pass. The inventory migration was applied to the local development database. Native bundle exports are not signed release builds or device tests. npm currently reports dependency vulnerabilities; dependency audit/remediation remains release-hardening work.
+Latest recorded automated verification: 58 backend tests and 40 mobile tests pass; mobile typecheck, lint, and Expo Android/iOS/web exports pass. On 2026-10-12, the Android release build completed and `apksigner` verified its signature. The local database migrations were applied for device testing. The APK is ignored local output at `.local/artifacts/ShelfMate-internal.apk`; it is not committed. Physical device behavior is still unverified. The npm dependency audit has unresolved advisories and remains release-hardening work.
 
-Manual device acceptance remains: run on two phones/emulators, create distinct accounts, create/join one household, confirm both member lists, reject a third account, restart to verify native secure persistence, and sign out. Native secure-storage and share-sheet behavior require device verification. Store release builds and push notifications are future phases.
+Manual device acceptance remains: install the APK on two Android phones, create separate accounts, create/join one household, verify shared inventory and shopping updates and the purchase transfer, verify restart/session persistence, and check the two-member limit. Push delivery needs a configured Expo project and Firebase credentials; in-app alerts remain available. Public release additionally needs production HTTPS hosting, privacy/store materials, and Play Console release setup.
 
 
 ## Try inventory
 
 1. Sign in and create/join your household, then open Inventory.
 2. Add a product with a name and quantity. The default category is Other and unit is piece; optional details let you change them, enter storage/purchase/notes, and set the item reminder flag.
-3. Leave expiry blank for Unknown, or enter YYYY-MM-DD and explicitly choose Printed or Estimated. The server calculates urgency from the household calendar; no purchase-based date is invented. Reminder delivery is not implemented yet.
+3. Leave expiry blank for Unknown, or enter YYYY-MM-DD and explicitly choose Printed or Estimated. The server calculates urgency from the household calendar; no purchase-based date is invented. In-app alerts are available; push delivery requires provider setup.
 4. Search/filter/sort items. Mark a product consumed or discarded after confirming, then find it under that history filter. History cannot be edited/reactivated in this phase.
-5. With two accounts, refresh Inventory on the other device to see changes. To test conflicts, open the same item for editing on both, save one, then save the second: reload the latest details and review before resubmitting. Live updates are phase 5; cached offline results may be stale and mutations require connectivity.
+5. With two accounts, live updates refresh household data across devices. To test conflicts, open the same item for editing on both, save one, then save the second: reload the latest details and review before resubmitting. Cached offline results may be stale and mutations require connectivity.
 
 Two-device inventory verification remains outstanding. The automated HTTP tests confirm both accounts operate on the same persisted records, but they do not replace real mobile device acceptance.
 
 
 ## Install/open the mobile app
 
-See [phone installation instructions](docs/mobile-installation.md) for SDK 57 Expo Go, optional iPhone development builds, LAN API setup, simulators and troubleshooting. No signed installer has been created. Home is now the Phase 3 dashboard; shopping/reminders are still unavailable.
+See [phone installation instructions](docs/mobile-installation.md) for Expo Go, the signed Android APK, LAN API setup, and remaining iOS/store release prerequisites.

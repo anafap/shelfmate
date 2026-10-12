@@ -19,7 +19,7 @@ Session: `{accessToken,refreshToken,expiresAt,user:{id,displayName,email}}`. Use
 
 Household: `{id,name,timeZone,ownerUserId}`. Members: `{userId,displayName,role,joinedAt}`. Locks and unique membership/slot constraints enforce two-member capacity. No leave/delete/ownership transfer API in this phase.
 
-Apply explicit EF migrations before startup. Health readiness checks connectivity only. Inventory is described below. Shopping, sync, alerts and push remain future phases.
+Apply explicit EF migrations before startup. Health readiness checks connectivity only. Inventory, shopping, SignalR, in-app alerts, and scheduled push dispatch are described below. Push delivery still requires Expo and Android provider credentials.
 
 ## Phase 2 inventory contract
 
@@ -34,11 +34,11 @@ All routes below require current household membership and are scoped from the be
 
 Item includes editable fields plus `{id,householdId,status,version,expiryStatus,daysRemaining,householdLocalDate,createdBy,updatedBy,createdAt,updatedAt}`. Active expiryStatus is Expired (<0 days), ExpiringSoon (0–7), OK (>7), or Unknown (missing date). Display day 0 as expiry today. Consumed/Discarded items have null expiryStatus/daysRemaining. ExpiryType remains distinct from lifecycle/urgency. No date is invented from a purchase date.
 
-Phase 2 uses authoritative fetch/refetch; SignalR and reminder delivery remain future phases. System categories are migration-seeded reference data, not sample household records. Consumed/Discarded filters serve as the archive/history view.
+Inventory is refreshed after local writes and in response to household-scoped SignalR resource-change events. System categories are migration-seeded reference data, not sample household records. Consumed/Discarded filters serve as the archive/history view.
 
 ## Phase 3 dashboard
 
-GET `/households/current/dashboard` requires current membership and returns `{householdId,householdName,householdLocalDate,activeCount,expiringSoonCount,expiryTodayOrPastCount,shoppingListCount,useFirst}`. Counts include only Active records. ExpiringSoon counts 1–7 days; today/past counts dates <= household-local today. Unknown dates count toward activeCount but not date-based counts or Use First. Use First includes the first ten Active items with non-null dates, ordered by expiry date, then name and ID; it uses the inventory item DTO including Printed/Estimated labels. `shoppingListCount` is null until phase 4, never a fabricated zero. Reads use one consistent database snapshot and one captured clock instant. No schema migration is needed.
+GET `/households/current/dashboard` requires current membership and returns `{householdId,householdName,householdLocalDate,activeCount,expiringSoonCount,expiryTodayOrPastCount,shoppingListCount,useFirst}`. Counts include only Active records. ExpiringSoon counts 1–7 days; today/past counts dates <= household-local today. Unknown dates count toward activeCount but not date-based counts or Use First. Use First includes the first ten Active items with non-null dates, ordered by expiry date, then name and ID; it uses the inventory item DTO including Printed/Estimated labels. `shoppingListCount` is the current count of ToBuy shopping items. Reads use one consistent database snapshot and one captured clock instant.
 
 ## Phase 4 shopping
 

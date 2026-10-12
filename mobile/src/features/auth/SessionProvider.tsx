@@ -23,10 +23,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    setLoading(true); setError('');
     restoreSession().catch(e => { if (active && e.status !== 401) setError(e.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [attempt]);
-  return <Context.Provider value={{ session, loading, error, retry: () => setAttempt(n => n + 1) }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ session, loading, error, retry: () => { setLoading(true); setError(''); setAttempt(n => n + 1); } }}>{children}</Context.Provider>;
 }

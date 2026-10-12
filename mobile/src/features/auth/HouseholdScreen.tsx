@@ -26,6 +26,7 @@ export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
   const [token, setToken] = useState(''); const [email, setEmail] = useState('');
   const [revokeId, setRevokeId] = useState<string | null>(null);
   const [invite, setInvite] = useState<Invite | null>(null); const [message, setMessage] = useState('');
+  const [now] = useState(() => Date.now());
   const owner = household.data?.ownerUserId === session?.user.id;
   const members = useQuery({ queryKey: ['members', household.data?.id], queryFn: () => api<Member[]>('/households/current/members'), enabled: !!household.data, retry: false });
   const invites = useQuery({ queryKey: ['invites', household.data?.id], queryFn: () => api<InviteSummary[]>('/households/current/invites'), enabled: !!household.data && owner && settings, retry: false });
@@ -68,7 +69,7 @@ export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
               : <Text style={styles.body}>Select and copy the code above to share it privately.</Text>}
           </>}
           {invites.isError && <><Text style={styles.error}>{invites.error.message}</Text><Action title="Retry invitations" onPress={() => { invites.refetch(); }} /></>}
-          {invites.data?.filter(i => !i.redeemedAt && !i.revokedAt && Date.parse(i.expiresAt) > Date.now()).map(i => <View key={i.id} style={{ gap: 8 }}>
+          {invites.data?.filter(i => !i.redeemedAt && !i.revokedAt && Date.parse(i.expiresAt) > now).map(i => <View key={i.id} style={{ gap: 8 }}>
             <Text style={styles.body}>Invitation for {i.invitedEmail ?? 'your partner'} · expires {new Date(i.expiresAt).toLocaleDateString()}</Text>
             {revokeId === i.id ? <>
               <Text style={styles.body}>Revoke this invitation? Its code will stop working.</Text>

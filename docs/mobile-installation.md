@@ -1,6 +1,6 @@
 # Run ShelfMate on your phone
 
-ShelfMate currently runs as a development app. No signed Android APK/iOS installer or store release has been produced. The project uses Expo SDK 55; Expo Go must match that SDK. Do not upgrade the project just to match the latest store client.
+ShelfMate currently runs as a development app. No signed Android APK/iOS installer or store release has been produced. The project uses Expo SDK 57; Expo Go must match that SDK.
 
 ## Start the database and API on your computer
 
@@ -17,7 +17,7 @@ From the phone's browser, visit `http://YOUR_COMPUTER_IP:5050/api/v1/health/read
 
 ## Android: quickest development preview
 
-1. Open [Expo Go downloads](https://expo.dev/go), select SDK **55** and Android, and install that compatible client. The latest Play Store version may support a different SDK. The SDK must match; see [Expo's compatibility guidance](https://docs.expo.dev/develop/development-builds/faq/#open-projects-using-other-sdk-versions).
+1. Install the current Expo Go client from [Expo Go downloads](https://expo.dev/go). Select SDK **57** if the page offers a version choice. The SDK must match; see [Expo's compatibility guidance](https://docs.expo.dev/develop/development-builds/faq/#open-projects-using-other-sdk-versions).
 2. In a terminal on the computer, run:
 
 ```sh
@@ -26,12 +26,12 @@ npm ci
 npx expo start --go
 ```
 
-3. Open the SDK-55 Expo Go client and scan the terminal QR code. Keep the development server, API and database running. Restart Expo whenever you change `mobile/.env`.
+3. Open Expo Go and scan the terminal QR code. Keep the development server, API and database running. Restart Expo whenever you change `mobile/.env`.
 4. Create your ShelfMate account. Create a household and confirm its time zone, or enter your partner's invitation code. Home displays the dashboard; Inventory manages products; Settings manages invitations/account. Your partner uses a separate ShelfMate account.
 
 ## iPhone: compatible client or a ShelfMate development build
 
-Expo documents that the App Store Expo Go client stops at SDK 54, so this SDK-55 project needs a development build on a physical iPhone (or a separately built compatible Expo Go client). See [version mismatch guidance](https://docs.expo.dev/troubleshooting/expo-go-version-mismatch/). This repository has not yet configured EAS signing or produced one. The following is the setup process, not a claim that a build already exists.
+The current App Store Expo Go client supports SDK 57. Sign in to the same Expo account in both Expo Go and Expo CLI (`npx expo login`), then run `npx expo start --go` and scan the QR code. See [Expo's login instructions](https://expo.dev/changelog/expo-go-57-login). A development build is also an option. This repository has not configured EAS signing or produced one. The following is the setup process, not a claim that a build already exists.
 
 For a cloud build, you need your Expo account and, for physical iPhone distribution, an Apple Developer membership and a registered device. From `mobile`, install the development client and configure EAS:
 

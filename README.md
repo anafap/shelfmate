@@ -8,7 +8,7 @@ Phases 1–3 implemented: sign-up/sign-in/sign-out, native secure session persis
 
 ## Local setup
 
-Prerequisites: .NET 10 SDK, Node 22 LTS, npm, Docker with Compose, and a simulator or compatible Expo Go client. Install the EF migration CLI before setup: `dotnet tool install --global dotnet-ef --version 10.0.10`.
+Prerequisites: .NET 10 SDK, Node 22 LTS, npm, Docker with Compose, and a simulator or Expo Go for SDK 57. Install the EF migration CLI before setup: `dotnet tool install --global dotnet-ef --version 10.0.10`.
 
 ```sh
 cp .env.example .env
@@ -85,4 +85,4 @@ Two-device inventory verification remains outstanding. The automated HTTP tests 
 
 ## Install/open the mobile app
 
-See [phone installation instructions](docs/mobile-installation.md) for SDK-55-compatible Expo Go on Android, iPhone development builds, LAN API setup, simulators and troubleshooting. No signed installer has been created. Home is now the Phase 3 dashboard; shopping/reminders are still unavailable.
+See [phone installation instructions](docs/mobile-installation.md) for SDK 57 Expo Go, optional iPhone development builds, LAN API setup, simulators and troubleshooting. No signed installer has been created. Home is now the Phase 3 dashboard; shopping/reminders are still unavailable.

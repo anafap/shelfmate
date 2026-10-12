@@ -59,7 +59,7 @@ export default function InventoryScreen() {
         </>}
         {categories.isError && <Text style={styles.error}>Could not load categories: {categories.error.message}</Text>}
         {inventory.isError && <Text accessibilityRole="alert" style={styles.error}>{inventory.error.message}{inventory.data ? ' Showing previously loaded items.' : ''}</Text>}
-        {inventory.data && <Text style={styles.body}>{inventory.data.total} {inventory.data.total === 1 ? 'product' : 'products'} · {status === 'All' ? 'All statuses' : status} · {sort === 'expiry' ? 'Nearest date first' : sort === 'name' ? 'Sorted by name' : 'Recently updated'}. Refresh to see household changes.</Text>}
+        {inventory.data && <Text style={styles.body}>{inventory.data.total} {inventory.data.total === 1 ? 'product' : 'products'} · {status === 'All' ? 'All statuses' : status} · {sort === 'expiry' ? 'Nearest date first' : sort === 'name' ? 'Sorted by name' : 'Recently updated'}</Text>}
         {!!message && <Text accessibilityLiveRegion="polite" style={styles.body}>{message}</Text>}
       </View>
       {(editor === 'new' || (editingId && !inventory.data?.items.some(item => item.id === editingId))) && editorForm}

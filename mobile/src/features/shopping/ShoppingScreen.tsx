@@ -53,10 +53,10 @@ export default function ShoppingScreen() {
       {!list.isPending && !list.isError && list.data?.length === 0 && <View style={styles.card}><Text style={styles.heading}>Nothing on your shopping list</Text><Text style={styles.body}>Quick add something you need at home.</Text></View>}
       {transfer && categories.data && <View style={{ gap: 12 }}>
         <Text style={styles.heading}>Add {transfer.name} to inventory</Text>
-        <Text style={styles.body}>Review quantity and date. If this product is already at home, review its Inventory record before adding a separate purchase.</Text>
+        <Text style={styles.body}>Check the quantity and date. Review any matching product in Inventory before adding a separate one.</Text>
         <View style={styles.card}><Text style={styles.body}>I reviewed existing inventory and want a separate new product</Text><Switch accessibilityLabel="Confirm separate inventory item" value={separate} onValueChange={setSeparate} /></View>
         <InventoryForm key={transfer.version} item={null} initial={transfer} categories={categories.data} saveLabel="Transfer to inventory" onCancel={() => setTransfer(null)} onReload={() => {}} submit={body => api(`${path}/${transfer.id}/transfer-to-inventory`, { version: transfer.version, item: body, confirmSeparateItem: separate }, 'POST')} onSaved={async () => { setTransfer(null); setMessage('Purchase transferred to inventory.'); await refresh(); }} />
-        <Action variant="secondary" title="Reload purchase before transfer (replaces draft)" onPress={async () => { const result = await list.refetch(); const latest = result.data?.find(x => x.id === transfer.id); if (latest) { setTransfer(latest.linkedInventoryItemId ? null : latest); setSeparate(false); setMessage(latest.linkedInventoryItemId ? 'Transfer already completed.' : 'Purchase reloaded. Review before transferring.'); } }} />
+        <Action variant="secondary" title="Reload purchase (discards edits)" onPress={async () => { const result = await list.refetch(); const latest = result.data?.find(x => x.id === transfer.id); if (latest) { setTransfer(latest.linkedInventoryItemId ? null : latest); setSeparate(false); setMessage(latest.linkedInventoryItemId ? 'Transfer already completed.' : 'Purchase reloaded. Review before transferring.'); } }} />
       </View>}
       {list.data?.map(item => <View key={item.id} style={ui.row}>
         <View style={ui.rowTop}>

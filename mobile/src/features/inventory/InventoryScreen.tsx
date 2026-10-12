@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
 import { Action, Field, styles } from '@/features/auth/AccountScreen';
 import { useHousehold } from '@/features/auth/HouseholdScreen';
@@ -18,6 +18,7 @@ export default function InventoryScreen() {
   const [transition, setTransition] = useState<{ item: InventoryItem; action: 'consume' | 'discard' } | null>(null);
   const [message, setMessage] = useState('');
   const [moreFilters, setMoreFilters] = useState(false);
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
   const { width } = useWindowDimensions();
   const categories = useQuery({ queryKey: ['categories', household.data?.id], queryFn: () => api<Category[]>('/households/current/categories'), enabled: !!household.data, retry: false });
   const inventory = useQuery({ queryKey: ['inventory', household.data?.id, category, status, search, sort, page], queryFn: () => {
@@ -64,15 +65,15 @@ export default function InventoryScreen() {
       {(editor === 'new' || (editingId && !inventory.data?.items.some(item => item.id === editingId))) && editorForm}
       {inventory.isPending && <ActivityIndicator accessibilityLabel="Loading inventory" />}
       {!inventory.isPending && !inventory.isError && inventory.data?.items.length === 0 && <View style={styles.card}><Text style={styles.heading}>{inventory.data.total === 0 ? 'No matching products yet' : 'No products on this page'}</Text><Text style={styles.body}>Add your first product or change the filters to view household inventory and history.</Text></View>}
-      <View style={ui.grid}>{inventory.data?.items.map(item => editingId === item.id ? <View key={item.id} style={{ width: '100%' }}>{editorForm}</View> : <View key={item.id} style={[styles.card, { width: width >= 1000 ? '48.5%' : '100%' }]}>
-        <View style={ui.toolbar}><Text accessibilityRole="header" style={[styles.heading, { flex: 1 }]}>{item.name}</Text><Text style={ui.quantity}>{item.quantity} {item.unit}</Text></View>
-        <Text style={[ui.badge, item.status === 'Active' && item.expiryStatus === 'Expired' ? ui.expired : item.status === 'Active' && item.expiryStatus === 'ExpiringSoon' ? ui.soon : null]}>{expiryLabel(item)}</Text>
-        <Text style={styles.body}>{item.status} · {categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'} · {item.storageLocation}</Text>
-        {item.expiryDate && <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated date' : 'Printed expiry date'}: {item.expiryDate}</Text>}
-        {item.expiryType === 'Estimated' && <Text style={styles.body}>Estimated dates are editable guides, not verified safety deadlines.</Text>}
-        {item.purchaseDate && <Text style={styles.body}>Purchased: {item.purchaseDate}</Text>}
-        {item.notes && <Text style={styles.body}>{item.notes}</Text>}
-        {item.status === 'Active' && <>
+      <View style={ui.grid}>{inventory.data?.items.map(item => editingId === item.id ? <View key={item.id} style={{ width: '100%' }}>{editorForm}</View> : <View key={item.id} style={[styles.card, ui.product, { width: width >= 1000 ? '48.5%' : '100%' }]}>
+        <View style={ui.toolbar}><View style={{ flex: 1, gap: 4 }}><Text accessibilityRole="header" style={styles.heading}>{item.name}</Text><Text style={styles.body}>{categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'} · {item.storageLocation}</Text></View><Text style={ui.quantity}>{item.quantity} {item.unit}</Text></View>
+        <View style={ui.dateRow}><Text style={[ui.badge, item.status === 'Active' && item.expiryStatus === 'Expired' ? ui.expired : item.status === 'Active' && item.expiryStatus === 'ExpiringSoon' ? ui.soon : null]}>{expiryLabel(item)}</Text>{item.expiryDate && <Text style={ui.dateText}>{item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} · {item.expiryDate}</Text>}</View>
+        {item.status === 'Active' && <Pressable accessibilityRole="button" accessibilityLabel={`Options for ${item.name}`} accessibilityState={{ expanded: openItemId === item.id }} style={ui.options} onPress={() => setOpenItemId(openItemId === item.id ? null : item.id)}><Text style={ui.optionsText}>{openItemId === item.id ? 'Hide options' : 'Options'}</Text></Pressable>}
+        {openItemId === item.id && <View style={ui.details}>
+          {item.expiryType === 'Estimated' && <Text style={styles.body}>Estimated dates are editable guides, not verified safety deadlines.</Text>}
+          {item.purchaseDate && <Text style={styles.body}>Purchased: {item.purchaseDate}</Text>}
+          {item.notes && <Text style={styles.body}>{item.notes}</Text>}
+          {item.status === 'Active' && <>
           <Action variant="secondary" title="Edit product" label={`Edit ${item.name}`} disabled={!!editor || !!transition} onPress={() => { setEditor(item); setMessage(''); }} />
           {transition?.item.id === item.id ? <>
             <Text style={styles.body}>Mark {item.name} as {transition.action === 'consume' ? 'consumed' : 'discarded'}? It will move to history and future item reminders will stop.</Text>
@@ -85,6 +86,7 @@ export default function InventoryScreen() {
             <View style={{ flex: 1 }}><Action variant="danger" title="Discarded" label={`Mark ${item.name} discarded`} disabled={!!editor || !!transition} onPress={() => { lifecycle.reset(); setTransition({ item, action: 'discard' }); }} /></View>
           </View>}
         </>}
+        </View>}
       </View>)}</View>
       {inventory.data && inventory.data.total > inventory.data.pageSize && <View style={ui.toolbar}>
         <Text style={styles.body}>Page {page} of {Math.ceil(inventory.data.total / inventory.data.pageSize)}</Text>
@@ -103,4 +105,10 @@ const ui = StyleSheet.create({
   badge: { alignSelf: 'flex-start', color: '#22634b', backgroundColor: '#edf5ef', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, fontSize: 14, fontWeight: '600' },
   expired: { color: '#9c2727', backgroundColor: '#fff0ed' },
   soon: { color: '#85520c', backgroundColor: '#fff4dc' },
+  product: { gap: 12 },
+  dateRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  dateText: { color: '#52665a', fontSize: 14 },
+  options: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center' },
+  optionsText: { color: '#22634b', fontSize: 15, fontWeight: '600' },
+  details: { gap: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e0e8e2' },
 });

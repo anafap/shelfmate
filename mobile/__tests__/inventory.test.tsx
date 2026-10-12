@@ -74,7 +74,9 @@ test('editing a stale version requires reloading and reviewing before another sa
     return defaultApi(path);
   });
   const client = await setup();
-  await screen.findByRole('button', { name: 'Edit Milk' });
+  await screen.findByRole('button', { name: 'Options for Milk' });
+  expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Options for Milk' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Edit Milk' }));
   await fireEvent.changeText(screen.getByLabelText('Product name'), 'My draft');
   await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
@@ -92,6 +94,8 @@ test.each(['consume', 'discard'] as const)('%s requires confirmation before movi
     return defaultApi(path);
   });
   const client = await setup();
+  await screen.findByRole('button', { name: 'Options for Milk' });
+  await fireEvent.press(screen.getByRole('button', { name: 'Options for Milk' }));
   await screen.findByRole('button', { name: `Mark Milk ${action === 'consume' ? 'consumed' : 'discarded'}` });
   await fireEvent.press(screen.getByRole('button', { name: `Mark Milk ${action === 'consume' ? 'consumed' : 'discarded'}` }));
   expect(api).not.toHaveBeenCalledWith(`${inventoryPath}/milk/${action}`, expect.anything(), 'POST');

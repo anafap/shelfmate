@@ -12,4 +12,6 @@ Phase 2 adds global migration-seeded category reference data and household-owned
 
 Each inventory write requires the current UUID version. EF uses it as a concurrency token in the update predicate and generates a replacement version after a successful edit/transition. Racing writes return 409; mobile keeps the draft and requires an explicit reload/review. History is accessible through lifecycle filters. Pagination and filters execute on the server. Mobile refetches after writes and provides manual refresh across devices, with explicit network errors and cached-data wording.
 
-Home dashboard counts/Use First, shopping transfers, household-scoped SignalR events and scheduled reminders remain subsequent phases. Phase 2 does not claim live sync, reminder delivery or complete MVP acceptance. Device testing remains outstanding.
+Phase 3 adds a household-scoped dashboard using a repeatable-read database snapshot and one captured household date. Active-only counts and Use First are queried server-side; unknown dates are excluded from date-based metrics. Home reuses inventory expiry labels and shows explicit stale-cache errors. Inventory mutations invalidate the dashboard query. Shopping count remains null until phase 4.
+
+Shopping transfers, household-scoped SignalR events and scheduled reminders remain subsequent phases. Phase 3 does not claim live sync, reminder delivery or complete MVP acceptance. Device testing remains outstanding.

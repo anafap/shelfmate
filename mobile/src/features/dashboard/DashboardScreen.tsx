@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { HouseholdScreen, useHousehold } from '@/features/auth/HouseholdScreen';
@@ -19,11 +19,8 @@ export default function DashboardScreen() {
   if (household.isError) return <FoundationScreen title="Home" description="Your household could not be loaded."><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></FoundationScreen>;
   if (!household.data) return <HouseholdScreen />;
   const data = dashboard.data;
-  return <FoundationScreen title={household.data.name} description="A quick look at what’s at home and which entered dates to review first.">
-    <View style={ui.toolbar}>
-      <Text style={[styles.body, { flex: 1 }]}>Shared household overview</Text>
-      <Action variant="secondary" title={dashboard.isFetching ? 'Refreshing…' : 'Refresh dashboard'} disabled={dashboard.isFetching} onPress={() => { dashboard.refetch(); }} />
-    </View>
+  return <FoundationScreen title={household.data.name} description="A clear view of what needs attention at home.">
+    <View style={ui.toolbar}><Text style={[styles.body, { flex: 1 }]}>Household overview</Text><Pressable accessibilityRole="button" accessibilityLabel="Refresh dashboard" disabled={dashboard.isFetching} onPress={() => { dashboard.refetch(); }}><Text style={ui.refresh}>{dashboard.isFetching ? 'Refreshing…' : 'Refresh'}</Text></Pressable></View>
     {dashboard.isPending && <ActivityIndicator accessibilityLabel="Loading dashboard" />}
     {dashboard.isError && <View style={styles.card}>
       <Text accessibilityRole="alert" style={styles.error}>{dashboard.error.message}</Text>
@@ -31,16 +28,9 @@ export default function DashboardScreen() {
       <Action variant="secondary" title="Retry dashboard" disabled={dashboard.isFetching} onPress={() => { dashboard.refetch(); }} />
     </View>}
     {data && <>
-      <View style={ui.stats}>
-        <Stat label="Active products" count={data.activeCount} detail="Currently at home" />
-        <Stat label="Expiring soon" count={data.expiringSoonCount} detail={(data.expiringSoonThreshold ?? 7) > 0 ? `Entered dates in 1–${data.expiringSoonThreshold ?? 7} days` : 'No days-before alerts selected'} />
-        <Stat label="Today or past date" count={data.expiryTodayOrPastCount} detail="Review these products" />
-        <View style={[styles.card, ui.stat]}><Text style={styles.body}>Shopping list</Text>{data.shoppingListCount === null ? <Text style={styles.heading}>Unavailable</Text> : <Text style={ui.count}>{data.shoppingListCount}</Text>}<Link href="/shopping" style={ui.link}>Open shopping list</Link></View>
-      </View>
-      <Text style={styles.body}>Household date when loaded: {data.householdLocalDate}. Refresh to see the latest household changes.</Text>
+      <View style={ui.attention}><Text style={ui.attentionCount}>{data.expiryTodayOrPastCount}</Text><View style={{ flex: 1 }}><Text style={ui.attentionTitle}>Today or past date</Text><Text style={styles.body}>Review these products and their condition.</Text></View></View>
       <View style={styles.card}>
-        <Text accessibilityRole="header" style={styles.heading}>Use First</Text>
-        <Text style={styles.body}>Up to 10 active products, nearest entered date first. Review dates and product condition before use.</Text>
+        <View style={ui.toolbar}><Text accessibilityRole="header" style={[styles.heading, { flex: 1 }]}>Use First</Text><Text style={ui.sectionHint}>Nearest entered dates</Text></View>
         {data.useFirst.length === 0 ? <>
           <Text style={styles.heading}>{data.activeCount === 0 ? 'Your shelves are ready' : 'No dates to prioritize'}</Text>
           <Text style={styles.body}>{data.activeCount === 0 ? 'Add your first product in Inventory to start your household overview.' : 'Your active products have no expiry dates. Add a printed or explicitly estimated date when you have one.'}</Text>
@@ -48,21 +38,33 @@ export default function DashboardScreen() {
           <View style={ui.toolbar}><Text accessibilityRole="header" style={[styles.heading, { flex: 1 }]}>{item.name}</Text><Text style={styles.body}>{item.quantity} {item.unit}</Text></View>
           <Text style={[styles.body, { fontWeight: '600', color: item.expiryStatus === 'Expired' ? '#9c2727' : '#22634b' }]}>{expiryLabel(item)}</Text>
           <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated date' : 'Printed expiry date'}: {item.expiryDate} · {item.storageLocation}</Text>
-          {item.expiryType === 'Estimated' && <Text style={styles.body}>An estimated date is an editable guide, not a verified safety deadline.</Text>}
+          {item.expiryType === 'Estimated' && <Text style={ui.estimatedNote}>An estimated date is an editable guide, not a verified safety deadline.</Text>}
         </View>)}
         <Link href="/inventory" accessibilityRole="button" style={ui.link}>Manage products in Inventory</Link>
+      </View>
+      <View style={ui.stats}>
+        <Stat label="Active products" count={data.activeCount} />
+        <Stat label="Expiring soon" count={data.expiringSoonCount} />
+        <View style={[styles.card, ui.stat]}><Text style={styles.body}>Shopping list</Text>{data.shoppingListCount === null ? <Text style={styles.heading}>Unavailable</Text> : <Text style={ui.count}>{data.shoppingListCount}</Text>}<Link href="/shopping" style={ui.smallLink}>Open list</Link></View>
       </View>
     </>}
   </FoundationScreen>;
 }
-function Stat({ label, count, detail }: { label: string; count: number; detail: string }) {
-  return <View style={[styles.card, ui.stat]}><Text style={styles.body}>{label}</Text><Text style={ui.count}>{count}</Text><Text style={styles.body}>{detail}</Text></View>;
+function Stat({ label, count }: { label: string; count: number }) {
+  return <View style={[styles.card, ui.stat]}><Text style={styles.body}>{label}</Text><Text style={ui.count}>{count}</Text></View>;
 }
 const ui = StyleSheet.create({
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
+  refresh: { color: '#22634b', fontSize: 15, fontWeight: '600', padding: 12 },
+  attention: { flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#fff4dc', borderRadius: 18, padding: 20 },
+  attentionCount: { fontSize: 40, fontWeight: '700', color: '#85520c' },
+  attentionTitle: { fontSize: 18, fontWeight: '700', color: '#193b2e' },
+  sectionHint: { color: '#596b62', fontSize: 13 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  stat: { flexGrow: 1, flexBasis: 180 },
+  stat: { flexGrow: 1, flexBasis: 180, minHeight: 110 },
   count: { fontSize: 36, fontWeight: '700', color: '#193b2e' },
   item: { gap: 8, borderTopWidth: 1, borderTopColor: '#e0e8e2', paddingTop: 16 },
+  estimatedNote: { color: '#596b62', fontSize: 13, lineHeight: 19 },
   link: { minHeight: 48, padding: 14, backgroundColor: '#f0f5f1', borderRadius: 10, color: '#22634b', fontSize: 16, fontWeight: '600' },
+  smallLink: { color: '#22634b', fontSize: 15, fontWeight: '600' },
 });

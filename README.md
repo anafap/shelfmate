@@ -67,7 +67,7 @@ See [architecture](docs/architecture.md), [API](docs/api.md), [decisions](docs/d
 
 Next milestone: install the signed APK on two Android phones and verify separate accounts, invitation, shared inventory/shopping changes, transfer, and reminder behavior. Then close release-hardening gaps and decide whether the target is private APK distribution or Google Play. The full milestone contract and future work are in AGENTS.md.
 
-Latest recorded automated verification: 58 backend tests and 40 mobile tests pass; mobile typecheck, lint, and Expo Android/iOS/web exports pass. On 2026-10-12, the Android release build completed and `apksigner` verified its signature. The local database migrations were applied for device testing. The APK is ignored local output at `.local/artifacts/ShelfMate-internal.apk`; it is not committed. Physical device behavior is still unverified. The npm dependency audit has unresolved advisories and remains release-hardening work.
+Latest recorded automated verification: 58 backend tests (previous milestone) and 48 mobile tests pass; mobile typecheck and lint pass. On 2026-10-12, the Android release build including native date pickers completed and `apksigner` verified its signature. The local database migrations were applied for device testing. The APK is ignored local output at `.local/artifacts/ShelfMate-internal.apk`; it is not committed. Physical device behavior is still unverified. The npm dependency audit has unresolved advisories and remains release-hardening work.
 
 Manual device acceptance remains: install the APK on two Android phones, create separate accounts, create/join one household, verify shared inventory and shopping updates and the purchase transfer, verify restart/session persistence, and check the two-member limit. Push delivery needs a configured Expo project and Firebase credentials; in-app alerts remain available. Public release additionally needs production HTTPS hosting, privacy/store materials, and Play Console release setup.
 
@@ -76,7 +76,7 @@ Manual device acceptance remains: install the APK on two Android phones, create 
 
 1. Sign in and create/join your household, then open Inventory.
 2. Add a product with a name and quantity. The default category is Other and unit is piece; optional details let you change them, enter storage/purchase/notes, and set the item reminder flag.
-3. Leave expiry blank for Unknown, or enter YYYY-MM-DD and explicitly choose Printed or Estimated. The server calculates urgency from the household calendar; no purchase-based date is invented. In-app alerts are available; push delivery requires provider setup.
+3. Leave expiry blank for Unknown, or select a date with the date picker and choose Printed or Estimated. You can clear an optional date. The server calculates urgency from the household calendar; no purchase-based date is invented. In-app alerts are available; push delivery requires provider setup.
 4. Search/filter/sort items. Mark a product consumed or discarded after confirming, then find it under that history filter. History cannot be edited/reactivated in this phase.
 5. With two accounts, live updates refresh household data across devices. To test conflicts, open the same item for editing on both, save one, then save the second: reload the latest details and review before resubmitting. Cached offline results may be stale and mutations require connectivity.
 

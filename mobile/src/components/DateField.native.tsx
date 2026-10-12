@@ -10,12 +10,16 @@ function pickerDate(value: string) {
   return new Date(year, month - 1, day, 12);
 }
 
+function displayDate(value: string) {
+  return value ? new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(pickerDate(value)) : 'Select a date';
+}
+
 export function DateField({ label, value, onChange, disabled }: Props) {
   const [open, setOpen] = useState(false);
   return <View style={styles.field}>
     <Text style={styles.label}>{label}</Text>
     <View style={styles.row}>
-      <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={() => setOpen(true)} style={styles.trigger}><Text style={styles.value}>{value || 'Choose date'}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityValue={{ text: value ? displayDate(value) : 'No date selected' }} disabled={disabled} onPress={() => setOpen(true)} style={styles.trigger}><Text style={styles.value}>{displayDate(value)}</Text></Pressable>
       {!!value && <Pressable accessibilityRole="button" accessibilityLabel={`Clear ${label}`} disabled={disabled} onPress={() => onChange('')} style={styles.clear}><Text style={styles.clearText}>Clear</Text></Pressable>}
     </View>
     {open && <View style={styles.picker}>

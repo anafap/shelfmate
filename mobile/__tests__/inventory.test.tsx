@@ -84,6 +84,18 @@ test('estimated expiry is explicitly selected and labeled', async () => {
   await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ expiryDate: '2026-10-15', expiryType: 'Estimated' }), 'POST')); client.clear();
 });
+test('optional expiry can be selected and cleared without entering a date', async () => {
+  const client = await setup(true);
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Rice');
+  expect(screen.getByRole('button', { name: 'Expiry date (optional)' }).props.accessibilityValue.text).toBe('No date selected');
+  await chooseDate('Expiry date (optional)', '2026-10-15');
+  expect(screen.getByRole('button', { name: 'Expiry date (optional)' }).props.accessibilityValue.text).toContain('2026');
+  await fireEvent.press(screen.getByRole('button', { name: 'Clear Expiry date (optional)' }));
+  expect(screen.getByRole('button', { name: 'Expiry date (optional)' }).props.accessibilityValue.text).toBe('No date selected');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ expiryDate: null, expiryType: 'Unknown' }), 'POST'));
+  client.clear();
+});
 test('editing a stale version requires reloading and reviewing before another save', async () => {
   items = [milk]; let latest = milk;
   jest.mocked(api).mockImplementation(async (path, body, method) => {

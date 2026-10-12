@@ -570,6 +570,18 @@ public sealed class AccountTests : IAsyncLifetime
         await client.PutAsJsonAsync("/api/v1/me/notification-preferences", new PreferenceRequest(false, false, [], [], "09:00"));
         Assert.Empty((await client.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!);
     }
+    [Fact]
+    public async Task DeviceRebindingStopsThePriorAccountAndOldLogoutCannotInvalidateNewOwner()
+    {
+        var (oldUser, _) = await Register("olduser"); var (newUser, _) = await Register("newuser");
+        await Create(oldUser); await EnableReminders(oldUser);
+        var response = await newUser.PostAsJsonAsync("/api/v1/me/push-devices", new DeviceRequest("ExpoPushToken[test-device]", "android"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty((await oldUser.GetFromJsonAsync<List<DeviceResult>>("/api/v1/me/push-devices"))!);
+        await oldUser.PostAsync("/api/v1/auth/logout", null);
+        Assert.True((await newUser.GetFromJsonAsync<List<DeviceResult>>("/api/v1/me/push-devices"))!.Single().Active);
+    }
+
     private sealed class PushStub : IPushSender
     {
         private int sends;

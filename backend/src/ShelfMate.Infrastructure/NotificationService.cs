@@ -40,12 +40,10 @@ public sealed partial class NotificationService(ShelfMateDbContext db, IAccountS
     private static DeviceResult View(PushDevice d) => new(d.Id, d.Platform, d.LastSeenAt, d.InvalidatedAt is null);
     public async Task<List<DeviceResult>> Devices(Guid userId)
     {
-        await accounts.CurrentHousehold(userId);
         return await db.PushDevices.Where(x => x.UserId == userId).OrderByDescending(x => x.LastSeenAt).Select(x => new DeviceResult(x.Id, x.Platform, x.LastSeenAt, x.InvalidatedAt == null)).ToListAsync();
     }
     public async Task<DeviceResult> RegisterDevice(Guid userId, Guid sessionId, DeviceRequest request)
     {
-        await accounts.CurrentHousehold(userId);
         if (request.Token is null || request.Token.Length > 200 || !ExpoToken().IsMatch(request.Token) || request.Platform is not ("android" or "ios")) throw new InventoryError(400, "A valid Expo device token and platform are required.");
         await using var tx = await db.Database.BeginTransactionAsync();
         var session = await db.Sessions.FromSqlInterpolated($"SELECT * FROM \"Sessions\" WHERE \"Id\" = {sessionId} AND \"UserId\" = {userId} FOR UPDATE").SingleAsync();
@@ -59,7 +57,6 @@ public sealed partial class NotificationService(ShelfMateDbContext db, IAccountS
     }
     public async Task RemoveDevice(Guid userId, Guid id)
     {
-        await accounts.CurrentHousehold(userId);
         var device = await db.PushDevices.SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId) ?? throw new InventoryError(404, "Device not found.");
         device.InvalidatedAt = clock.GetUtcNow(); await db.SaveChangesAsync();
     }

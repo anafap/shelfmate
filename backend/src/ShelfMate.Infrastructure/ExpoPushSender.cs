@@ -13,7 +13,7 @@ public sealed class ExpoPushSender(HttpClient http) : IPushSender
         {
             try
             {
-                using var response = await http.PostAsJsonAsync("https://exp.host/--/api/v2/push/send", batch.Select(x => new { to = x.Token, title, body, sound = "default", data = new { screen = "alerts" } }), cancellationToken);
+                using var response = await http.PostAsJsonAsync("https://exp.host/--/api/v2/push/send", batch.Select(x => new { to = x.Token, title, body, sound = "default", channelId = "expiry-review", data = new { screen = "alerts" } }), cancellationToken);
                 response.EnsureSuccessStatusCode();
                 using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
                 var data = json.RootElement.GetProperty("data").EnumerateArray().ToArray();

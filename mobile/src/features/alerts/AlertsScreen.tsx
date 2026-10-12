@@ -34,6 +34,16 @@ export default function AlertsScreen() {
   if (!household.isPending && !household.isError && !household.data) return <HouseholdScreen />;
   return <FoundationScreen title="Alerts" description="Review products approaching an entered or estimated date. In-app reminders work even when push is unavailable." compact>
     {household.isPending ? <ActivityIndicator /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></> : <>
+      <Text accessibilityRole="header" style={styles.heading}>Items to review</Text>
+      {alerts.isPending && <ActivityIndicator accessibilityLabel="Loading alerts" />}
+      {alerts.isError && <Text accessibilityRole="alert" style={styles.error}>{alerts.error.message}{alerts.data ? ' Showing previously loaded reminders.' : ''}</Text>}
+      {!alerts.isPending && !alerts.isError && alerts.data?.length === 0 && <View style={styles.card}><Text style={styles.heading}>{preferences.data?.inAppEnabled === false ? 'In-app reminders are off' : 'No items to review right now'}</Text><Text style={styles.body}>Only active items with dates and enabled reminders appear here. Your category and reminder-window preferences apply.</Text></View>}
+      {alerts.data?.map(item => <View key={item.id} style={styles.card}>
+        <Text accessibilityRole="header" style={styles.heading}>{item.name}</Text><Text style={styles.body}>{expiryLabel(item)}</Text>
+        <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated date' : 'Printed expiry date'}: {item.expiryDate} · {item.quantity} {item.unit}</Text>
+        <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated dates are guides, not verified safety deadlines. ' : ''}Review the product and its packaging instructions.</Text>
+      </View>)}
+      <Action variant="secondary" title="Refresh alerts" disabled={alerts.isFetching} onPress={() => { alerts.refetch(); preferences.refetch(); }} />
       <View style={styles.card}>
         <Text style={styles.heading}>Reminder preferences</Text>
         {preferences.isPending && <ActivityIndicator accessibilityLabel="Loading reminder preferences" />}
@@ -58,15 +68,6 @@ export default function AlertsScreen() {
         </>}
         {!!notice && <Text accessibilityLiveRegion="polite" style={styles.body}>{notice}</Text>}
       </View>
-      <Action variant="secondary" title="Refresh alerts" disabled={alerts.isFetching} onPress={() => { alerts.refetch(); preferences.refetch(); }} />
-      {alerts.isPending && <ActivityIndicator accessibilityLabel="Loading alerts" />}
-      {alerts.isError && <Text accessibilityRole="alert" style={styles.error}>{alerts.error.message}{alerts.data ? ' Showing previously loaded reminders.' : ''}</Text>}
-      {!alerts.isPending && !alerts.isError && alerts.data?.length === 0 && <View style={styles.card}><Text style={styles.heading}>{preferences.data?.inAppEnabled === false ? 'In-app reminders are off' : 'No items to review right now'}</Text><Text style={styles.body}>Only active items with dates and enabled reminders appear here. Your category and reminder-window preferences apply.</Text></View>}
-      {alerts.data?.map(item => <View key={item.id} style={styles.card}>
-        <Text accessibilityRole="header" style={styles.heading}>{item.name}</Text><Text style={styles.body}>{expiryLabel(item)}</Text>
-        <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated date' : 'Printed expiry date'}: {item.expiryDate} · {item.quantity} {item.unit}</Text>
-        <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated dates are guides, not verified safety deadlines. ' : ''}Review the product and its packaging instructions.</Text>
-      </View>)}
     </>}
   </FoundationScreen>;
 }

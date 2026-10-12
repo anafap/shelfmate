@@ -22,6 +22,119 @@ namespace ShelfMate.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ShelfMate.Domain.Category", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsSystemDefined")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("Categories");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000001"),
+                            IsSystemDefined = true,
+                            Key = "fruits",
+                            Name = "Fruits"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000002"),
+                            IsSystemDefined = true,
+                            Key = "vegetables",
+                            Name = "Vegetables"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000003"),
+                            IsSystemDefined = true,
+                            Key = "dairy",
+                            Name = "Dairy"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000004"),
+                            IsSystemDefined = true,
+                            Key = "meat",
+                            Name = "Meat & Poultry"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000005"),
+                            IsSystemDefined = true,
+                            Key = "seafood",
+                            Name = "Seafood"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000006"),
+                            IsSystemDefined = true,
+                            Key = "frozen",
+                            Name = "Frozen Food"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000007"),
+                            IsSystemDefined = true,
+                            Key = "pantry",
+                            Name = "Pantry & Canned"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000008"),
+                            IsSystemDefined = true,
+                            Key = "bakery",
+                            Name = "Bakery"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000009"),
+                            IsSystemDefined = true,
+                            Key = "beverages",
+                            Name = "Beverages"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000010"),
+                            IsSystemDefined = true,
+                            Key = "medicines",
+                            Name = "Medicines"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000011"),
+                            IsSystemDefined = true,
+                            Key = "household",
+                            Name = "Household Essentials"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-4000-8000-000000000012"),
+                            IsSystemDefined = true,
+                            Key = "other",
+                            Name = "Other"
+                        });
+                });
+
             modelBuilder.Entity("ShelfMate.Domain.Household", b =>
                 {
                     b.Property<Guid>("Id")
@@ -137,6 +250,104 @@ namespace ShelfMate.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShelfMate.Domain.InventoryItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("ExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ExpiryType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateOnly?>("PurchaseDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)");
+
+                    b.Property<bool>("ReminderEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("StorageLocation")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("UpdatedBy");
+
+                    b.HasIndex("HouseholdId", "Status", "ExpiryDate");
+
+                    b.ToTable("Inventory", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Inventory_Dates", "(\"ExpiryDate\" IS NULL OR \"ExpiryDate\" BETWEEN DATE '1900-01-01' AND DATE '2100-12-31') AND (\"PurchaseDate\" IS NULL OR \"PurchaseDate\" BETWEEN DATE '1900-01-01' AND DATE '2100-12-31')");
+
+                            t.HasCheckConstraint("CK_Inventory_Expiry", "(\"ExpiryDate\" IS NULL AND \"ExpiryType\" = 'Unknown') OR (\"ExpiryDate\" IS NOT NULL AND \"ExpiryType\" IN ('Printed', 'Estimated'))");
+
+                            t.HasCheckConstraint("CK_Inventory_Name", "length(btrim(\"Name\")) > 0");
+
+                            t.HasCheckConstraint("CK_Inventory_Quantity", "\"Quantity\" > 0 AND \"Quantity\" <= 1000000");
+
+                            t.HasCheckConstraint("CK_Inventory_Reminders", "\"Status\" = 'Active' OR NOT \"ReminderEnabled\"");
+
+                            t.HasCheckConstraint("CK_Inventory_Status", "\"Status\" IN ('Active', 'Consumed', 'Discarded')");
+
+                            t.HasCheckConstraint("CK_Inventory_Unit", "\"Unit\" IN ('piece', 'g', 'kg', 'ml', 'l', 'pack', 'bottle', 'box')");
+                        });
+                });
+
             modelBuilder.Entity("ShelfMate.Domain.Session", b =>
                 {
                     b.Property<Guid>("Id")
@@ -247,6 +458,33 @@ namespace ShelfMate.Infrastructure.Migrations
                     b.HasOne("ShelfMate.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ShelfMate.Domain.InventoryItem", b =>
+                {
+                    b.HasOne("ShelfMate.Domain.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShelfMate.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShelfMate.Domain.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShelfMate.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedBy")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

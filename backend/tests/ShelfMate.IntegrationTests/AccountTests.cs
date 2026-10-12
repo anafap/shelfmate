@@ -179,6 +179,155 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(client, "invalid")).StatusCode);
     }
 
+    private const string InventoryPath = "/api/v1/households/current/inventory";
+    private static SaveInventoryRequest Product(string name = "Milk") => new(name, Guid.Parse("00000000-0000-4000-8000-000000000003"), 1, "bottle", ExpiryDate: new DateOnly(2026, 10, 13), ExpiryType: "Printed");
+    private static async Task<InventoryResult> AddProduct(HttpClient client, SaveInventoryRequest? request = null)
+    {
+        var response = await client.PostAsJsonAsync(InventoryPath, request ?? Product());
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotNull(response.Headers.Location);
+        return (await response.Content.ReadFromJsonAsync<InventoryResult>())!;
+    }
+
+    [Fact]
+    public async Task MembersShareInventoryAndOutsidersCannotReadWriteOrTransition()
+    {
+        var (owner, _) = await Register("owner"); var (member, _) = await Register("member"); var (outsider, _) = await Register("outsider");
+        await Create(owner); await Create(outsider);
+        var invite = await Invite(owner); await Redeem(member, invite.Token);
+        var categories = await member.GetFromJsonAsync<List<CategoryResult>>("/api/v1/households/current/categories");
+        Assert.Equal(12, categories!.Count);
+        var item = await AddProduct(owner);
+        Assert.Equal(item, await member.GetFromJsonAsync<InventoryResult>($"{InventoryPath}/{item.Id}"));
+        var edit = Product("Shared milk") with { Version = item.Version, Quantity = 2 };
+        Assert.Equal(HttpStatusCode.OK, (await member.PatchAsJsonAsync($"{InventoryPath}/{item.Id}", edit)).StatusCode);
+        var current = (await owner.GetFromJsonAsync<InventoryResult>($"{InventoryPath}/{item.Id}"))!;
+        Assert.Equal("Shared milk", current.Name); Assert.Equal(2, current.Quantity);
+        Assert.NotEqual(item.Version, current.Version); Assert.Equal(item.CreatedBy, current.CreatedBy);
+        Assert.NotEqual(current.CreatedBy, current.UpdatedBy);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.GetAsync($"{InventoryPath}/{item.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.PatchAsJsonAsync($"{InventoryPath}/{item.Id}", edit)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.PostAsJsonAsync($"{InventoryPath}/{item.Id}/consume", new TransitionRequest(current.Version))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.PostAsJsonAsync($"{InventoryPath}/{item.Id}/discard", new TransitionRequest(current.Version))).StatusCode);
+        Assert.Empty((await outsider.GetFromJsonAsync<InventoryPage>(InventoryPath))!.Items);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().GetAsync(InventoryPath)).StatusCode);
+        var (noHome, _) = await Register("nohome");
+        Assert.Equal(HttpStatusCode.Forbidden, (await noHome.GetAsync("/api/v1/households/current/categories")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await noHome.PostAsJsonAsync(InventoryPath, Product())).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("consume", "Consumed")]
+    [InlineData("discard", "Discarded")]
+    public async Task LifecycleTransitionsPreserveHistoryAndDisableReminders(string action, string status)
+    {
+        var (client, _) = await Register("owner"); await Create(client);
+        var item = await AddProduct(client);
+        var response = await client.PostAsJsonAsync($"{InventoryPath}/{item.Id}/{action}", new TransitionRequest(item.Version));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var archived = (await response.Content.ReadFromJsonAsync<InventoryResult>())!;
+        Assert.Equal(status, archived.Status); Assert.False(archived.ReminderEnabled);
+        Assert.Null(archived.ExpiryStatus); Assert.Null(archived.DaysRemaining);
+        Assert.Equal(item.ExpiryDate, archived.ExpiryDate);
+        Assert.Empty((await client.GetFromJsonAsync<InventoryPage>(InventoryPath))!.Items);
+        Assert.Single((await client.GetFromJsonAsync<InventoryPage>($"{InventoryPath}?status={status}"))!.Items);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PatchAsJsonAsync($"{InventoryPath}/{item.Id}", Product() with { Version = archived.Version })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"{InventoryPath}/{item.Id}/{action}", new TransitionRequest(archived.Version))).StatusCode);
+    }
+
+    [Fact]
+    public async Task ConcurrentInventoryEditsHaveOneWinnerAndOneConflict()
+    {
+        var (owner, _) = await Register("owner"); var (member, _) = await Register("member");
+        await Create(owner); await Redeem(member, (await Invite(owner)).Token);
+        var item = await AddProduct(owner);
+        var replies = await Task.WhenAll(
+            owner.PatchAsJsonAsync($"{InventoryPath}/{item.Id}", Product("Owner edit") with { Version = item.Version }),
+            member.PatchAsJsonAsync($"{InventoryPath}/{item.Id}", Product("Member edit") with { Version = item.Version }));
+        var winner = Assert.Single(replies, x => x.StatusCode == HttpStatusCode.OK);
+        var loser = Assert.Single(replies, x => x.StatusCode == HttpStatusCode.Conflict);
+        Assert.Equal("application/problem+json", loser.Content.Headers.ContentType?.MediaType);
+        var saved = (await winner.Content.ReadFromJsonAsync<InventoryResult>())!;
+        Assert.Equal(saved, await owner.GetFromJsonAsync<InventoryResult>($"{InventoryPath}/{item.Id}"));
+        Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsJsonAsync($"{InventoryPath}/{item.Id}/discard", new TransitionRequest(item.Version))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.PatchAsJsonAsync($"{InventoryPath}/{item.Id}", Product())).StatusCode);
+    }
+
+    [Fact]
+    public async Task SearchCategoryPaginationAndExpiryOrderingUseAuthoritativeRecords()
+    {
+        var (client, _) = await Register("owner"); await Create(client);
+        var unknown = await AddProduct(client, Product("Unknown milk") with { ExpiryDate = null, ExpiryType = "Unknown" });
+        var later = await AddProduct(client, Product("Later milk") with { ExpiryDate = new DateOnly(2026, 10, 20) });
+        var soon = await AddProduct(client, Product("Soon milk"));
+        var bread = await AddProduct(client, Product("Bread") with { CategoryId = Guid.Parse("00000000-0000-4000-8000-000000000008"), ExpiryDate = new DateOnly(2026, 10, 12) });
+        var list = (await client.GetFromJsonAsync<InventoryPage>(InventoryPath))!;
+        Assert.Equal(new[] { bread.Id, soon.Id, later.Id, unknown.Id }, list.Items.Select(x => x.Id));
+        var search = (await client.GetFromJsonAsync<InventoryPage>($"{InventoryPath}?search=MILK&category={soon.CategoryId}&page=2&pageSize=2"))!;
+        Assert.Equal(3, search.Total); Assert.Single(search.Items); Assert.Equal(unknown.Id, search.Items[0].Id);
+        var byName = (await client.GetFromJsonAsync<InventoryPage>($"{InventoryPath}?sort=name"))!;
+        Assert.Equal("Bread", byName.Items[0].Name);
+        Assert.Equal("ExpiringSoon", list.Items[0].ExpiryStatus); Assert.Equal(0, list.Items[0].DaysRemaining);
+        Assert.Equal("OK", list.Items[2].ExpiryStatus); Assert.Equal("Unknown", list.Items[3].ExpiryStatus);
+        foreach (var query in new[] { "status=invalid", "sort=invalid", "page=0", "pageSize=101" })
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync($"{InventoryPath}?{query}")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("name")]
+    [InlineData("quantity")]
+    [InlineData("precision")]
+    [InlineData("unit")]
+    [InlineData("category")]
+    [InlineData("missingDate")]
+    [InlineData("unknownWithDate")]
+    [InlineData("futurePurchase")]
+    [InlineData("dateRange")]
+    [InlineData("notes")]
+    [InlineData("location")]
+    public async Task InventoryRejectsInvalidFields(string field)
+    {
+        var (client, _) = await Register("owner"); await Create(client);
+        var product = field switch
+        {
+            "name" => Product(" "),
+            "quantity" => Product() with { Quantity = 0 },
+            "precision" => Product() with { Quantity = 1.0001m },
+            "unit" => Product() with { Unit = "invalid" },
+            "category" => Product() with { CategoryId = Guid.NewGuid() },
+            "missingDate" => Product() with { ExpiryDate = null },
+            "unknownWithDate" => Product() with { ExpiryType = "Unknown" },
+            "futurePurchase" => Product() with { PurchaseDate = new DateOnly(2026, 10, 13) },
+            "dateRange" => Product() with { ExpiryDate = new DateOnly(2200, 1, 1) },
+            "notes" => Product() with { Notes = new string('x', 2001) },
+            _ => Product() with { StorageLocation = new string('x', 81) }
+        };
+        var response = await client.PostAsJsonAsync(InventoryPath, product);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Empty((await client.GetFromJsonAsync<InventoryPage>(InventoryPath))!.Items);
+    }
+
+    [Fact]
+    public async Task DateEditsAndHouseholdCalendarChangesRecalculateUrgency()
+    {
+        var (client, _) = await Register("owner"); await Create(client);
+        var item = await AddProduct(client, Product() with { ExpiryDate = new DateOnly(2026, 10, 12) });
+        Assert.Equal(0, item.DaysRemaining);
+        var updated = await client.PatchAsJsonAsync($"{InventoryPath}/{item.Id}", Product() with { Version = item.Version, ExpiryDate = new DateOnly(2026, 10, 14), ExpiryType = "Estimated" });
+        var estimated = (await updated.Content.ReadFromJsonAsync<InventoryResult>())!;
+        Assert.Equal("Estimated", estimated.ExpiryType); Assert.Equal(2, estimated.DaysRemaining);
+        clock.Advance(TimeSpan.FromHours(38));
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"));
+        var session = (await login.Content.ReadFromJsonAsync<SessionResult>())!;
+        client.DefaultRequestHeaders.Authorization = new("Bearer", session.AccessToken);
+        var current = (await client.GetFromJsonAsync<InventoryResult>($"{InventoryPath}/{item.Id}"))!;
+        Assert.Equal(new DateOnly(2026, 10, 14), current.HouseholdLocalDate);
+        Assert.Equal(0, current.DaysRemaining);
+        var unknown = await AddProduct(client, Product("Loose produce") with { ExpiryDate = null, ExpiryType = "Unknown", PurchaseDate = new DateOnly(2026, 10, 14) });
+        Assert.Null(unknown.ExpiryDate); Assert.Null(unknown.DaysRemaining); Assert.Equal("Unknown", unknown.ExpiryStatus);
+    }
+
     private sealed class TestClock : TimeProvider
     {
         private DateTimeOffset now = new(2026, 10, 12, 10, 0, 0, TimeSpan.Zero);

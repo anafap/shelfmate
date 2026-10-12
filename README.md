@@ -18,7 +18,7 @@ set -a
 source .env
 set +a
 dotnet ef database update --project backend/src/ShelfMate.Infrastructure --startup-project backend/src/ShelfMate.Api
-dotnet run --project backend/src/ShelfMate.Api --no-launch-profile --urls http://0.0.0.0:5050
+ASPNETCORE_ENVIRONMENT=Development dotnet run --project backend/src/ShelfMate.Api --no-launch-profile --urls http://0.0.0.0:5050
 ```
 
 Keep the connection string quoted in `.env` so shell loading preserves its semicolons.
@@ -32,7 +32,7 @@ npm ci
 npm start
 ```
 
-`EXPO_PUBLIC_API_URL` is a public URL, never a secret. Use `http://localhost:5050` for iOS simulator/web, `http://10.0.2.2:5050` for Android emulator, or your computer's LAN IP for a physical phone on the same network. The API binds all interfaces for local device testing; PostgreSQL stays on loopback. Restart Expo after changing its environment. HTTP is for local development; production requires HTTPS.
+`EXPO_PUBLIC_API_URL` is a public URL, never a secret. Use `http://localhost:5050` for iOS simulator/web, `http://10.0.2.2:5050` for Android emulator, or your computer's LAN IP for a physical phone on the same network. The API binds all interfaces for local device testing; PostgreSQL stays on loopback. Restart Expo after changing its environment. Browser origins default to `http://localhost:8081` and `http://127.0.0.1:8081`; if Expo selects another port or you use a LAN address, set `Cors__AllowedOrigins__0` to that exact web origin before starting the API. Production web hosting must configure its HTTPS origin explicitly using the same setting. HTTP is for local development; production requires HTTPS.
 
 Sign in or create your account. Home lets you create a household or enter an invitation code. Open Account & household settings to generate/share or revoke a code; your partner signs in with a separate account and joins from Home. Confirm the proposed IANA time zone at household creation. Household changes can be refreshed manually; live sync comes in phase 5. Network errors offer retry, and expired sessions return to sign-in. Native sessions persist in SecureStore; web development sessions are memory-only.
 
@@ -67,6 +67,6 @@ See [architecture](docs/architecture.md), [API](docs/api.md), [decisions](docs/d
 
 Next: phase 2, categories, inventory CRUD, lifecycle transitions and household-local expiry rules. Subsequent milestones and future work are in AGENTS.md.
 
-Phase 1 automated verification: 10 backend tests (health plus account/household HTTP flows using migrated isolated PostgreSQL databases) and 9 mobile tests. These cover two-account membership, rejected third member, outsider access, owner restrictions, invitation replay/revocation/expiry/email binding, concurrent redemption, token rotation/replay/expiry/logout, account forms, onboarding, revocation confirmation, and network retry behavior. Type checking, lint, C# formatting and Expo web/iOS/Android bundle exports pass. Native bundle exports are not signed release builds or device tests. npm currently reports dependency vulnerabilities; dependency audit/remediation remains release-hardening work.
+Phase 1 automated verification: 14 backend tests (health, browser CORS, and account/household HTTP flows using migrated isolated PostgreSQL databases) and 13 mobile tests. These cover two-account membership, rejected third member, outsider access, owner restrictions, invitation replay/revocation/expiry/email binding, concurrent redemption, token rotation/replay/expiry/logout, account forms, onboarding, revocation confirmation, network retry behavior, post-sign-in household loading, concurrent session restoration, delayed unauthorized responses, and offline local sign-out. Type checking, lint, C# formatting and Expo web/iOS/Android bundle exports pass. Native bundle exports are not signed release builds or device tests. npm currently reports dependency vulnerabilities; dependency audit/remediation remains release-hardening work.
 
 Manual device acceptance remains: run on two phones/emulators, create distinct accounts, create/join one household, confirm both member lists, reject a third account, restart to verify native secure persistence, and sign out. Native secure-storage and share-sheet behavior require device verification. Store release builds and push notifications are future phases.

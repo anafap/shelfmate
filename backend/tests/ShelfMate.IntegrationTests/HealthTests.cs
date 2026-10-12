@@ -9,6 +9,40 @@ namespace ShelfMate.IntegrationTests;
 
 public sealed class HealthTests
 {
+    [Theory]
+    [InlineData("http://localhost:8081", true)]
+    [InlineData("http://127.0.0.1:8081", true)]
+    [InlineData("https://untrusted.example", false)]
+    public async Task BrowserSignInPreflightAllowsOnlyConfiguredOrigins(string origin, bool allowed)
+    {
+        await using var factory = CreateFactory(true);
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/v1/auth/login");
+        request.Headers.Add("Origin", origin);
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+        request.Headers.Add("Access-Control-Request-Headers", "content-type");
+        using var response = await factory.CreateClient().SendAsync(request);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(allowed, response.Headers.Contains("Access-Control-Allow-Origin"));
+        if (allowed) Assert.Equal(origin, Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
+    }
+
+    [Fact]
+    public async Task ProductionBrowserSignInAllowsConfiguredHttpsOrigin()
+    {
+        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Production");
+            builder.UseSetting("Cors:AllowedOrigins:0", "https://shelfmate.example");
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Options, "https://localhost/api/v1/auth/login");
+        request.Headers.Add("Origin", "https://shelfmate.example");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+        request.Headers.Add("Access-Control-Request-Headers", "content-type");
+        using var response = await factory.CreateClient().SendAsync(request);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal("https://shelfmate.example", Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
+    }
+
     [Fact]
     public async Task LivenessDoesNotRequireDatabase()
     {

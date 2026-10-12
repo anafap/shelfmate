@@ -24,11 +24,11 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Logging.AddJsonConsole();
-if (builder.Environment.IsDevelopment())
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 {
-    builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
-        policy.WithOrigins("http://localhost:8081").AllowAnyHeader().AllowAnyMethod()));
-}
+    if (allowedOrigins.Length > 0) policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
+}));
 
 var app = builder.Build();
 app.UseExceptionHandler();
@@ -42,14 +42,11 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-Correlation-ID"] = context.TraceIdentifier;
     await next(context);
 });
-if (app.Environment.IsDevelopment())
-{
-    app.UseCors();
-}
-else
+if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

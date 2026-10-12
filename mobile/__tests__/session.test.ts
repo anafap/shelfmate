@@ -50,3 +50,40 @@ test('invalid refresh token clears private session state', async () => {
   expect(storage.deleteItemAsync).toHaveBeenCalled();
   expect(client.getSession()).toBeNull();
 });
+
+test('simultaneous startup restores read and rotate the stored token once', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
+  jest.mocked(storage.getItemAsync).mockResolvedValue('saved-refresh');
+  fetchMock.mockResolvedValue(response(200, session));
+  await Promise.all([client.restoreSession(), client.restoreSession()]);
+  expect(storage.getItemAsync).toHaveBeenCalledTimes(1);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test('a delayed unauthorized response uses the token another request already rotated', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  let rejectSecond!: (value: Response) => void;
+  fetchMock.mockResolvedValueOnce(response(200, session))
+    .mockResolvedValueOnce(response(401, { title: 'Expired' }))
+    .mockImplementationOnce(() => new Promise<Response>(resolve => { rejectSecond = resolve; }))
+    .mockResolvedValueOnce(response(200, { ...session, accessToken: 'rotated', refreshToken: 'new-refresh' }))
+    .mockResolvedValue(response(200, { id: 'home' }));
+  await client.signIn('ana@example.com', 'password');
+  const first = client.api('/me');
+  const second = client.api('/households/current');
+  await first;
+  rejectSecond(response(401, { title: 'Expired' }));
+  await second;
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth/refresh'))).toHaveLength(1);
+});
+
+test('sign-out clears local credentials even when the server is unavailable', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  fetchMock.mockResolvedValueOnce(response(200, session)).mockRejectedValueOnce(new Error('offline'));
+  await client.signIn('ana@example.com', 'password');
+  await expect(client.signOut()).rejects.toThrow('Unable to connect');
+  expect(client.getSession()).toBeNull();
+  const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
+  expect(storage.deleteItemAsync).toHaveBeenCalled();
+});

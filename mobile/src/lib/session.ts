@@ -9,6 +9,7 @@ export class ApiError extends Error {
 let session: Session | null = null;
 let refreshToken: string | null = null;
 let refreshPromise: Promise<Session> | null = null;
+let restorePromise: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 const key = 'shelfmate.refresh';
 export const getSession = () => session;
@@ -58,8 +59,14 @@ async function refresh(): Promise<Session> {
   return refreshPromise;
 }
 export async function restoreSession() {
-  if (Platform.OS !== 'web') refreshToken = await SecureStore.getItemAsync(key);
-  if (refreshToken) await refresh();
+  if (session) return;
+  if (!restorePromise) {
+    restorePromise = (async () => {
+      if (Platform.OS !== 'web') refreshToken = await SecureStore.getItemAsync(key);
+      if (refreshToken) await refresh();
+    })().finally(() => { restorePromise = null; });
+  }
+  await restorePromise;
 }
 export async function signIn(email: string, password: string, displayName?: string) {
   const next = await raw<Session>(displayName === undefined ? '/auth/login' : '/auth/register', { email, password, displayName });
@@ -72,11 +79,12 @@ export async function api<T>(path: string, body?: unknown, method = 'GET'): Prom
   try { return await raw<T>(path, body, current.accessToken, method); }
   catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
-    current = await refresh();
+    if (!session) throw new ApiError(401, 'Please sign in again.');
+    current = session.accessToken !== current.accessToken ? session : await refresh();
     return raw<T>(path, body, current.accessToken, method);
   }
 }
 export async function signOut() {
-  await api('/auth/logout', undefined, 'POST');
-  await save(null);
+  try { await api('/auth/logout', undefined, 'POST'); }
+  finally { await save(null); }
 }

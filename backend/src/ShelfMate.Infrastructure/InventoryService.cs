@@ -12,14 +12,19 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
         var household = await (from m in db.Members join h in db.Households on m.HouseholdId equals h.Id where m.UserId == userId select h).SingleOrDefaultAsync();
         return household ?? throw Error(403, "Create or join a household to manage inventory.");
     }
-    private InventoryResult View(InventoryItem item, Household household, DateTimeOffset? snapshotTime = null)
+    private InventoryResult View(InventoryItem item, Household household, DateTimeOffset? snapshotTime = null, int threshold = ExpiryRules.DefaultThreshold)
     {
-        var expiry = ExpiryRules.Assess(item.ExpiryDate, snapshotTime ?? clock.GetUtcNow(), household.TimeZone);
+        var expiry = ExpiryRules.Assess(item.ExpiryDate, snapshotTime ?? clock.GetUtcNow(), household.TimeZone, threshold);
         return new(item.Id, item.HouseholdId, item.Name, item.CategoryId, item.Quantity, item.Unit,
             item.PurchaseDate, item.ExpiryDate, item.ExpiryType, item.StorageLocation, item.Notes,
             item.Status, item.ReminderEnabled, item.Version, item.Status == "Active" ? expiry.Status : null,
             item.Status == "Active" ? expiry.DaysRemaining : null, expiry.LocalDate,
             item.CreatedBy, item.UpdatedBy, item.CreatedAt, item.UpdatedAt);
+    }
+    private async Task<int> Threshold(Guid userId, Guid householdId)
+    {
+        var offsets = await db.Preferences.Where(x => x.UserId == userId && x.HouseholdId == householdId).Select(x => x.DayOffsets).SingleOrDefaultAsync();
+        return offsets is null ? ExpiryRules.DefaultThreshold : offsets.Length == 0 ? 0 : offsets.Max();
     }
     public async Task<DashboardResult> Dashboard(Guid userId)
     {
@@ -27,7 +32,8 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
         await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         var household = await Household(userId);
         var today = ExpiryRules.Assess(null, now, household.TimeZone).LocalDate;
-        var soonThrough = today.AddDays(ExpiryRules.DefaultThreshold);
+        var threshold = await Threshold(userId, household.Id);
+        var soonThrough = today.AddDays(threshold);
         var active = db.Inventory.AsNoTracking().Where(x => x.HouseholdId == household.Id && x.Status == "Active");
         var counts = await active.GroupBy(x => 1).Select(g => new
         {
@@ -38,7 +44,7 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
         var items = await active.Where(x => x.ExpiryDate != null).OrderBy(x => x.ExpiryDate).ThenBy(x => x.Name).ThenBy(x => x.Id).Take(10).ToListAsync();
         var shoppingCount = await db.Shopping.CountAsync(x => x.HouseholdId == household.Id && x.Status == "ToBuy");
         await transaction.CommitAsync();
-        return new(household.Id, household.Name, today, counts?.Total ?? 0, counts?.Soon ?? 0, counts?.Due ?? 0, shoppingCount, items.Select(x => View(x, household, now)).ToList());
+        return new(household.Id, household.Name, today, counts?.Total ?? 0, counts?.Soon ?? 0, counts?.Due ?? 0, shoppingCount, items.Select(x => View(x, household, now, threshold)).ToList(), threshold);
     }
     public async Task<List<CategoryResult>> Categories(Guid userId)
     {
@@ -68,13 +74,14 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
             _ => query.OrderBy(x => x.ExpiryDate == null).ThenBy(x => x.ExpiryDate).ThenBy(x => x.Name).ThenBy(x => x.Id)
         };
         var items = await ordered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return new(items.Select(x => View(x, household)).ToList(), total, page, pageSize);
+        var threshold = await Threshold(userId, household.Id);
+        return new(items.Select(x => View(x, household, threshold: threshold)).ToList(), total, page, pageSize);
     }
     private async Task<InventoryItem> Find(Guid householdId, Guid id) => await db.Inventory.SingleOrDefaultAsync(x => x.Id == id && x.HouseholdId == householdId) ?? throw Error(404, "Inventory item not found.");
     public async Task<InventoryResult> Get(Guid userId, Guid id)
     {
         var household = await Household(userId);
-        return View(await Find(household.Id, id), household);
+        return View(await Find(household.Id, id), household, threshold: await Threshold(userId, household.Id));
     }
     private async Task Apply(InventoryItem item, SaveInventoryRequest r, Household household)
     {
@@ -103,7 +110,7 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
         await Apply(item, request, household);
         db.Inventory.Add(item);
         await db.SaveChangesAsync();
-        return View(item, household);
+        return View(item, household, threshold: await Threshold(userId, household.Id));
     }
     private static void CheckVersion(InventoryItem item, Guid version)
     {
@@ -122,7 +129,7 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
         var household = await Household(userId); var item = await Find(household.Id, id);
         CheckVersion(item, request.Version ?? Guid.Empty);
         await Apply(item, request, household); await Save(item, userId);
-        return View(item, household);
+        return View(item, household, threshold: await Threshold(userId, household.Id));
     }
     public async Task<InventoryResult> Transition(Guid userId, Guid id, Guid version, string status)
     {
@@ -131,6 +138,6 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
         CheckVersion(item, version);
         item.Status = status; item.ReminderEnabled = false;
         await Save(item, userId);
-        return View(item, household);
+        return View(item, household, threshold: await Threshold(userId, household.Id));
     }
 }

@@ -348,6 +348,141 @@ namespace ShelfMate.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShelfMate.Domain.NotificationLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AttemptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("ExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InventoryItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Offset")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("ReceiptsCheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.PrimitiveCollection<Guid[]>("TicketDeviceIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.PrimitiveCollection<string[]>("TicketIds")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HouseholdId");
+
+                    b.HasIndex("InventoryItemId");
+
+                    b.HasIndex("UserId", "InventoryItemId", "ExpiryDate", "Offset")
+                        .IsUnique();
+
+                    b.ToTable("NotificationLogs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Log_Tickets", "cardinality(\"TicketIds\") = cardinality(\"TicketDeviceIds\")");
+                        });
+                });
+
+            modelBuilder.Entity("ShelfMate.Domain.NotificationPreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<int[]>("DayOffsets")
+                        .IsRequired()
+                        .HasColumnType("integer[]");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("InAppEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<TimeOnly>("LocalDeliveryTime")
+                        .HasColumnType("time without time zone");
+
+                    b.PrimitiveCollection<Guid[]>("MutedCategoryIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.Property<bool>("PushEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HouseholdId");
+
+                    b.HasIndex("UserId", "HouseholdId")
+                        .IsUnique();
+
+                    b.ToTable("Preferences", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Preference_Offsets", "cardinality(\"DayOffsets\") <= 16 AND 0 <= ALL(\"DayOffsets\") AND 365 >= ALL(\"DayOffsets\")");
+                        });
+                });
+
+            modelBuilder.Entity("ShelfMate.Domain.PushDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("InvalidatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PushDevices", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Device_Platform", "\"Platform\" IN ('android', 'ios')");
+                        });
+                });
+
             modelBuilder.Entity("ShelfMate.Domain.Session", b =>
                 {
                     b.Property<Guid>("Id")
@@ -361,6 +496,9 @@ namespace ShelfMate.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("PushDeviceId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("RefreshExpiresAt")
                         .HasColumnType("timestamp with time zone");
@@ -380,6 +518,8 @@ namespace ShelfMate.Infrastructure.Migrations
 
                     b.HasIndex("AccessHash")
                         .IsUnique();
+
+                    b.HasIndex("PushDeviceId");
 
                     b.HasIndex("RefreshHash")
                         .IsUnique();
@@ -572,8 +712,58 @@ namespace ShelfMate.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ShelfMate.Domain.NotificationLog", b =>
+                {
+                    b.HasOne("ShelfMate.Domain.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShelfMate.Domain.InventoryItem", null)
+                        .WithMany()
+                        .HasForeignKey("InventoryItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShelfMate.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ShelfMate.Domain.NotificationPreference", b =>
+                {
+                    b.HasOne("ShelfMate.Domain.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShelfMate.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ShelfMate.Domain.PushDevice", b =>
+                {
+                    b.HasOne("ShelfMate.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ShelfMate.Domain.Session", b =>
                 {
+                    b.HasOne("ShelfMate.Domain.PushDevice", null)
+                        .WithMany()
+                        .HasForeignKey("PushDeviceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ShelfMate.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")

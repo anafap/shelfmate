@@ -18,6 +18,15 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IShoppingService, ShoppingService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IReminderDispatcher, ReminderDispatcher>();
+builder.Services.AddHttpClient<IPushSender, ExpoPushSender>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(15);
+    var token = builder.Configuration["ExpoPush:AccessToken"];
+    if (!string.IsNullOrWhiteSpace(token)) http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+});
+if (builder.Configuration.GetValue("Reminders:Enabled", true)) builder.Services.AddHostedService<ReminderWorker>();
 builder.Services.AddAuthentication("Session").AddScheme<AuthenticationSchemeOptions, SessionAuthentication>("Session", null);
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
@@ -62,7 +71,7 @@ app.Use(async (context, next) =>
     if (context.Response.StatusCode is >= 200 and < 300 && context.Request.Method is "POST" or "PATCH" or "PUT" or "DELETE")
     {
         var path = context.Request.Path.Value ?? "";
-        var resource = path.Contains("/inventory") ? "inventory" : path.Contains("/shopping-items") ? "shopping" : path.Contains("/household") ? "household" : null;
+        var resource = path.Contains("/notification-preferences") ? "preferences" : path.Contains("/inventory") ? "inventory" : path.Contains("/shopping-items") ? "shopping" : path.Contains("/household") ? "household" : null;
         if (resource is not null && Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
             try
@@ -79,6 +88,7 @@ app.MapHub<HouseholdHub>("/hubs/household", options => options.CloseOnAuthentica
 app.MapAccounts();
 app.MapInventory();
 app.MapShopping();
+app.MapNotifications();
 app.MapGet("/api/v1/health/live", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/api/v1/health/ready", async (IDatabaseAvailability database, CancellationToken cancellationToken) =>
     await database.CanConnectAsync(cancellationToken)

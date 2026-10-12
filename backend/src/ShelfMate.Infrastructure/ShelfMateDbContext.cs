@@ -11,12 +11,39 @@ public sealed class ShelfMateDbContext(DbContextOptions<ShelfMateDbContext> opti
     public DbSet<HouseholdMember> Members => Set<HouseholdMember>();
     public DbSet<HouseholdInvite> Invites => Set<HouseholdInvite>();
 
+    public DbSet<NotificationPreference> Preferences => Set<NotificationPreference>();
+    public DbSet<PushDevice> PushDevices => Set<PushDevice>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<ShoppingItem> Shopping => Set<ShoppingItem>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<InventoryItem> Inventory => Set<InventoryItem>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<NotificationPreference>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.HouseholdId }).IsUnique();
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Household>().WithMany().HasForeignKey(x => x.HouseholdId).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable("Preferences", t => t.HasCheckConstraint("CK_Preference_Offsets", "cardinality(\"DayOffsets\") <= 16 AND 0 <= ALL(\"DayOffsets\") AND 365 >= ALL(\"DayOffsets\")"));
+        });
+        model.Entity<PushDevice>(e =>
+        {
+            e.HasIndex(x => x.Token).IsUnique();
+            e.Property(x => x.Token).HasMaxLength(200);
+            e.Property(x => x.Platform).HasMaxLength(20);
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable("PushDevices", t => t.HasCheckConstraint("CK_Device_Platform", "\"Platform\" IN ('android', 'ios')"));
+        });
+        model.Entity<NotificationLog>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.InventoryItemId, x.ExpiryDate, x.Offset }).IsUnique();
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Household>().WithMany().HasForeignKey(x => x.HouseholdId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<InventoryItem>().WithMany().HasForeignKey(x => x.InventoryItemId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.Status).HasMaxLength(30);
+            e.ToTable("NotificationLogs", t => t.HasCheckConstraint("CK_Log_Tickets", "cardinality(\"TicketIds\") = cardinality(\"TicketDeviceIds\")"));
+        });
         model.Entity<ShoppingItem>(e =>
         {
             e.ToTable("Shopping", t =>
@@ -80,6 +107,7 @@ public sealed class ShelfMateDbContext(DbContextOptions<ShelfMateDbContext> opti
         });
         model.Entity<Session>(e =>
         {
+            e.HasOne<PushDevice>().WithMany().HasForeignKey(x => x.PushDeviceId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.AccessHash).IsUnique();
             e.HasIndex(x => x.RefreshHash).IsUnique();

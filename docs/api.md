@@ -51,3 +51,11 @@ POST `/{id}/transfer-to-inventory` takes `{version,item:<inventory create fields
 ## Phase 5 live changes
 
 Authenticated SignalR hub `/hubs/household` assigns the connection to its server-resolved household group; clients cannot choose household IDs or subscribe to another group. `ResourceChanged` carries only `{resource}` and clients refetch authoritative records. Successful writes publish after the API operation completes; replay-safe writes can emit harmless refetch events. Disconnect/reconnect and foreground resume trigger refetch. Hub access tokens expire and reconnect obtains a fresh token; logout stops the subscription and clears private caches. Browser WebSocket tokens use `access_token` only on this hub route; hosting/proxy logs must not record that query parameter.
+
+## Phase 6 reminders
+
+GET/PUT `/me/notification-preferences` applies to the caller's current household. Preferences: `{pushEnabled,inAppEnabled,dayOffsets,mutedCategoryIds,localDeliveryTime}`. Defaults: push off, in-app on, offsets [7,3,1,0], 09:00 local time. Offsets must be unique integers 0–365 (up to 16); local delivery uses HH:mm; muted IDs must be known categories. The largest selected offset controls that user's computed urgency window.
+
+GET `/households/current/alerts` returns current Active, reminder-enabled products within that window (including passed dates), filtered by in-app/category preferences. Unknown dates never generate alerts. GET/POST `/me/push-devices` lists safe metadata/registers `{token,platform}`; DELETE `/{id}` invalidates the caller's device. Registering binds the token to the authenticated account/session; online logout invalidates its associated device.
+
+The scheduled worker checks calendar dates, selected offsets, household-local delivery time, membership, preferences, lifecycle, date snapshot and valid tokens at dispatch. Notification logs have unique user+item+date+offset keys. A durable claim precedes network dispatch; an uncertain/crashed attempt is not blindly resent, preventing duplicate messages at the cost of possible missed delivery. In-app alerts remain available. Expo ticket receipts invalidate DeviceNotRegistered tokens. Push delivery is not guaranteed at an exact time. Real Expo project/FCM credentials and physical-device verification are separate prerequisites; no working push is claimed without them.

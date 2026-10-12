@@ -20,6 +20,7 @@ public sealed class AccountTests : IAsyncLifetime
     private string adminConnection = "";
     private readonly string database = "shelfmate_test_" + Guid.NewGuid().ToString("N");
     private readonly TestClock clock = new();
+    private readonly PushStub push = new();
 
     public async Task InitializeAsync()
     {
@@ -35,10 +36,13 @@ public sealed class AccountTests : IAsyncLifetime
         {
             host.UseEnvironment("Development");
             host.UseSetting("ConnectionStrings:ShelfMate", connection);
+            host.UseSetting("Reminders:Enabled", "false");
             host.ConfigureServices(services =>
             {
                 services.RemoveAll<TimeProvider>();
                 services.AddSingleton<TimeProvider>(clock);
+                services.RemoveAll<IPushSender>();
+                services.AddSingleton<IPushSender>(push);
             });
         });
         using var scope = factory.Services.CreateScope();
@@ -485,6 +489,101 @@ public sealed class AccountTests : IAsyncLifetime
         await Task.Delay(200);
         Assert.Equal(0, outsiderEvents);
         Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().PostAsync("/hubs/household/negotiate?negotiateVersion=1", null)).StatusCode);
+    }
+
+    private async Task RunReminders(bool receipts = false)
+    {
+        using var scope = factory.Services.CreateScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IReminderDispatcher>();
+        if (receipts) await dispatcher.CheckReceipts(CancellationToken.None); else await dispatcher.Dispatch(CancellationToken.None);
+    }
+    private static async Task EnableReminders(HttpClient client, int[]? offsets = null, string time = "00:00", Guid[]? muted = null)
+    {
+        var response = await client.PutAsJsonAsync("/api/v1/me/notification-preferences", new PreferenceRequest(true, true, offsets ?? [7, 3, 1, 0], muted ?? [], time));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var device = await client.PostAsJsonAsync("/api/v1/me/push-devices", new DeviceRequest("ExpoPushToken[test-device]", "android"));
+        Assert.Equal(HttpStatusCode.OK, device.StatusCode);
+    }
+    [Fact]
+    public async Task RemindersDeduplicateDispatchAndRespectEditsLifecycleAndPreferences()
+    {
+        var (client, _) = await Register("owner"); await Create(client); await EnableReminders(client);
+        var eligible = await AddProduct(client);
+        await AddProduct(client, Product("Unknown") with { ExpiryDate = null, ExpiryType = "Unknown" });
+        await AddProduct(client, Product("Disabled") with { ReminderEnabled = false });
+        var consumed = await AddProduct(client, Product("Consumed"));
+        await client.PostAsJsonAsync($"{InventoryPath}/{consumed.Id}/consume", new TransitionRequest(consumed.Version));
+        var discarded = await AddProduct(client, Product("Discarded"));
+        await client.PostAsJsonAsync($"{InventoryPath}/{discarded.Id}/discard", new TransitionRequest(discarded.Version));
+        await Task.WhenAll(RunReminders(), RunReminders()); await RunReminders(); Assert.Equal(1, push.Sends);
+        Assert.Single((await client.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!);
+        var response = await client.PatchAsJsonAsync($"{InventoryPath}/{eligible.Id}", Product() with { Version = eligible.Version, ExpiryDate = new DateOnly(2026, 10, 19) });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await RunReminders(); Assert.Equal(2, push.Sends);
+        await client.PutAsJsonAsync("/api/v1/me/notification-preferences", new PreferenceRequest(false, true, [7, 3, 1, 0], [], "00:00"));
+        await AddProduct(client, Product("No push")); await RunReminders(); Assert.Equal(2, push.Sends);
+        using var scope = factory.Services.CreateScope();
+        Assert.Equal(2, await scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>().NotificationLogs.CountAsync());
+    }
+    [Fact]
+    public async Task ReminderLocalTimeMutedCategoriesAndPermissionFallbackWork()
+    {
+        var (client, _) = await Register("owner"); var (outsider, _) = await Register("outsider");
+        await Create(client); await Create(outsider);
+        var item = await AddProduct(client); await EnableReminders(client, time: "14:00");
+        await RunReminders(); Assert.Equal(0, push.Sends); // Bahrain local time is 13:00.
+        await EnableReminders(client, time: "00:00", muted: [item.CategoryId]);
+        await RunReminders(); Assert.Equal(0, push.Sends);
+        Assert.Empty((await client.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!);
+        await EnableReminders(client); push.Invalid = true;
+        await RunReminders(); Assert.Equal(1, push.Sends);
+        Assert.False((await client.GetFromJsonAsync<List<DeviceResult>>("/api/v1/me/push-devices"))!.Single().Active);
+        Assert.Single((await client.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!);
+        Assert.Empty((await outsider.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.DeleteAsync("/api/v1/me/push-devices/" + (await client.GetFromJsonAsync<List<DeviceResult>>("/api/v1/me/push-devices"))!.Single().Id)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/v1/me/notification-preferences", new PreferenceRequest(true, true, [-1], [], "00:00"))).StatusCode);
+    }
+    [Fact]
+    public async Task ReminderReceiptsInvalidateTokensAndOnlineLogoutInvalidatesItsDevice()
+    {
+        var (client, _) = await Register("owner"); await Create(client); await EnableReminders(client);
+        await AddProduct(client); await RunReminders(); Assert.Equal(1, push.Sends);
+        clock.Advance(TimeSpan.FromMinutes(16)); push.InvalidReceipt = true;
+        await RunReminders(receipts: true);
+        using (var scope = factory.Services.CreateScope()) Assert.NotNull((await scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>().PushDevices.SingleAsync()).InvalidatedAt);
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<SessionResult>())!.AccessToken);
+        await EnableReminders(client);
+        await client.PostAsync("/api/v1/auth/logout", null);
+        using var logoutScope = factory.Services.CreateScope();
+        Assert.NotNull((await logoutScope.ServiceProvider.GetRequiredService<ShelfMateDbContext>().PushDevices.SingleAsync()).InvalidatedAt);
+    }
+    [Fact]
+    public async Task UnknownDeliveryIsNeverBlindlyRetriedAndThresholdsAreUserControlled()
+    {
+        var (client, _) = await Register("owner"); await Create(client); await EnableReminders(client, [1, 0]);
+        var item = await AddProduct(client); await AddProduct(client, Product("Three days") with { ExpiryDate = new DateOnly(2026, 10, 15) });
+        var dashboard = (await client.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
+        Assert.Equal(1, dashboard.ExpiringSoonThreshold); Assert.Equal(1, dashboard.ExpiringSoonCount);
+        push.Unknown = true; await Task.WhenAll(RunReminders(), RunReminders()); await RunReminders(); Assert.Equal(1, push.Sends);
+        Assert.Single((await client.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!);
+        await client.PutAsJsonAsync("/api/v1/me/notification-preferences", new PreferenceRequest(false, false, [], [], "09:00"));
+        Assert.Empty((await client.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!);
+    }
+    private sealed class PushStub : IPushSender
+    {
+        private int sends;
+        public int Sends => sends;
+        public bool Invalid { get; set; }
+        public bool Unknown { get; set; }
+        public bool InvalidReceipt { get; set; }
+        public Task<List<PushResult>> Send(IReadOnlyList<PushTarget> devices, string title, string body, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref sends);
+            Assert.Contains("Review", body);
+            return Task.FromResult(devices.Select(d => new PushResult(d.DeviceId, Invalid ? "InvalidDevice" : Unknown ? "UnknownDelivery" : "Accepted", Invalid || Unknown ? null : Guid.NewGuid().ToString())).ToList());
+        }
+        public Task<Dictionary<string, string>> Receipts(string[] ticketIds, CancellationToken cancellationToken) => Task.FromResult(ticketIds.ToDictionary(x => x, _ => InvalidReceipt ? "InvalidDevice" : "ReceiptAccepted"));
     }
 
     private sealed class TestClock : TimeProvider

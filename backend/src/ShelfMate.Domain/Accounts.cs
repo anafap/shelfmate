@@ -14,6 +14,7 @@ public sealed class Session
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }
+    public Guid? PushDeviceId { get; set; }
     public string AccessHash { get; set; } = "";
     public string RefreshHash { get; set; } = "";
     public DateTimeOffset AccessExpiresAt { get; set; }

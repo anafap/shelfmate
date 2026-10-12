@@ -115,7 +115,12 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
         // Serialize against refresh so logout cannot miss a concurrently rotated session.
         await using var transaction = await db.Database.BeginTransactionAsync();
         var session = await db.Sessions.FromSqlInterpolated($"SELECT * FROM \"Sessions\" WHERE \"Id\" = {sessionId} FOR UPDATE").SingleOrDefaultAsync();
-        if (session is not null) session.Revoked = true;
+        if (session is not null)
+        {
+            session.Revoked = true;
+            if (session.PushDeviceId is Guid deviceId)
+                await db.PushDevices.Where(x => x.Id == deviceId && x.UserId == session.UserId).ExecuteUpdateAsync(s => s.SetProperty(x => x.InvalidatedAt, Now));
+        }
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
     }

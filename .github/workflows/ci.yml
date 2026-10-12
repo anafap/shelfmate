@@ -1,0 +1,55 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: shelfmate_test
+          POSTGRES_USER: shelfmate_test
+          POSTGRES_PASSWORD: ci-only-password
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U shelfmate_test -d shelfmate_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore backend/ShelfMate.sln
+      - run: dotnet build backend/ShelfMate.sln --no-restore --configuration Release
+      - run: dotnet test backend/ShelfMate.sln --no-build --configuration Release
+      - run: dotnet format backend/ShelfMate.sln --no-restore --verify-no-changes
+      - name: PostgreSQL readiness smoke check
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__ShelfMate: Host=localhost;Database=shelfmate_test;Username=shelfmate_test;Password=ci-only-password
+        run: |
+          dotnet run --project backend/src/ShelfMate.Api --no-build --configuration Release --no-launch-profile --urls http://localhost:5050 > /tmp/shelfmate-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid"' EXIT
+          curl --fail --retry 15 --retry-delay 1 --retry-all-errors http://localhost:5050/api/v1/health/ready
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npx expo export --platform web

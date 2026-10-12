@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/.expo/
+**/dist/
+**/coverage/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.user
+*.log

@@ -107,7 +107,7 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
         if (token.Length != 64) return null;
         var hash = Hash(token);
         var session = await db.Sessions.AsNoTracking().SingleOrDefaultAsync(x => x.AccessHash == hash && !x.Revoked && x.AccessExpiresAt > Now);
-        return session is null ? null : new(session.UserId, session.Id);
+        return session is null ? null : new(session.UserId, session.Id, session.AccessExpiresAt);
     }
 
     public async Task Logout(Guid sessionId)

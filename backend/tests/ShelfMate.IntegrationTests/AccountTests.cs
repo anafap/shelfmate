@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR.Client;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -457,6 +458,33 @@ public sealed class AccountTests : IAsyncLifetime
         foreach (var invalid in new[] { new SaveShoppingRequest(" "), new SaveShoppingRequest("Bad", Quantity: -1), new SaveShoppingRequest("Bad", Unit: "invalid"), new SaveShoppingRequest("Bad", CategoryId: Guid.NewGuid()) })
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(ShoppingPath, invalid)).StatusCode);
         Assert.Empty((await client.GetFromJsonAsync<List<ShoppingResult>>(ShoppingPath))!);
+    }
+
+    [Fact]
+    public async Task LiveChangesReachHouseholdMembersButNeverAnotherHousehold()
+    {
+        var (owner, _) = await Register("owner"); var (member, memberSession) = await Register("member"); var (outsider, outsiderSession) = await Register("outsider");
+        var household = await Create(owner); await Create(outsider); await Redeem(member, (await Invite(owner)).Token);
+        Microsoft.AspNetCore.SignalR.Client.HubConnection Connection(string token) => new Microsoft.AspNetCore.SignalR.Client.HubConnectionBuilder()
+            .WithUrl("http://localhost/hubs/household", options =>
+            {
+                options.AccessTokenProvider = () => Task.FromResult<string?>(token);
+                options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
+                options.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler();
+            }).Build();
+        await using var shared = Connection(memberSession.AccessToken);
+        await using var other = Connection(outsiderSession.AccessToken);
+        var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var outsiderEvents = 0;
+        shared.On<System.Text.Json.JsonElement>("ResourceChanged", value => received.TrySetResult(value.GetProperty("resource").GetString()!));
+        other.On<System.Text.Json.JsonElement>("ResourceChanged", value => { if (value.GetProperty("resource").GetString() == "inventory") Interlocked.Increment(ref outsiderEvents); });
+        await shared.StartAsync(); await other.StartAsync();
+        await Assert.ThrowsAsync<Microsoft.AspNetCore.SignalR.HubException>(() => other.InvokeAsync("JoinHousehold", household.Id));
+        await AddProduct(owner);
+        Assert.Equal("inventory", await received.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+        await Task.Delay(200);
+        Assert.Equal(0, outsiderEvents);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().PostAsync("/hubs/household/negotiate?negotiateVersion=1", null)).StatusCode);
     }
 
     private sealed class TestClock : TimeProvider

@@ -12,11 +12,12 @@ public sealed class SessionAuthentication(IOptionsMonitor<AuthenticationSchemeOp
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var header = Request.Headers.Authorization.ToString();
+        if (string.IsNullOrEmpty(header) && Request.Path.StartsWithSegments("/hubs/household") && Request.Query.TryGetValue("access_token", out var token)) header = $"Bearer {token}";
         if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return AuthenticateResult.NoResult();
         var session = await accounts.Authenticate(header[7..]);
         if (session is null) return AuthenticateResult.Fail("Session expired.");
         var identity = new ClaimsIdentity([new(ClaimTypes.NameIdentifier, session.UserId.ToString()), new("session", session.SessionId.ToString())], Scheme.Name);
-        return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name));
+        return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), new AuthenticationProperties { ExpiresUtc = session.ExpiresAt }, Scheme.Name));
     }
 }
 

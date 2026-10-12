@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using ShelfMate.Api;
@@ -18,6 +20,7 @@ builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IShoppingService, ShoppingService>();
 builder.Services.AddAuthentication("Session").AddScheme<AuthenticationSchemeOptions, SessionAuthentication>("Session", null);
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
@@ -53,6 +56,26 @@ app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.Use(async (context, next) =>
+{
+    await next(context);
+    if (context.Response.StatusCode is >= 200 and < 300 && context.Request.Method is "POST" or "PATCH" or "PUT" or "DELETE")
+    {
+        var path = context.Request.Path.Value ?? "";
+        var resource = path.Contains("/inventory") ? "inventory" : path.Contains("/shopping-items") ? "shopping" : path.Contains("/household") ? "household" : null;
+        if (resource is not null && Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            try
+            {
+                var accounts = context.RequestServices.GetRequiredService<IAccountService>();
+                var household = await accounts.CurrentHousehold(userId);
+                await context.RequestServices.GetRequiredService<IHubContext<HouseholdHub>>().Clients.Group(HouseholdHub.Group(household.Id)).SendAsync("ResourceChanged", new { resource });
+            }
+            catch { app.Logger.LogWarning("Household refetch event unavailable for request {TraceId}", context.TraceIdentifier); }
+        }
+    }
+});
+app.MapHub<HouseholdHub>("/hubs/household", options => options.CloseOnAuthenticationExpiration = true);
 app.MapAccounts();
 app.MapInventory();
 app.MapShopping();

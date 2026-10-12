@@ -12,7 +12,7 @@ public sealed record HouseholdResult(Guid Id, string Name, string TimeZone, Guid
 public sealed record MemberResult(Guid UserId, string DisplayName, string Role, DateTimeOffset JoinedAt);
 public sealed record InviteResult(Guid Id, string Token, DateTimeOffset ExpiresAt);
 public sealed record InviteSummary(Guid Id, string? InvitedEmail, DateTimeOffset ExpiresAt, DateTimeOffset? RedeemedAt, DateTimeOffset? RevokedAt);
-public sealed record AuthenticatedSession(Guid UserId, Guid SessionId);
+public sealed record AuthenticatedSession(Guid UserId, Guid SessionId, DateTimeOffset ExpiresAt);
 public sealed class AccountError(int status, string message) : Exception(message)
 {
     public int Status { get; } = status;

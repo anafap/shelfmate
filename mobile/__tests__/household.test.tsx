@@ -44,9 +44,13 @@ test('owner must confirm before revoking an invitation', async () => {
     return undefined as never;
   });
   const client = await setup();
-  await screen.findByRole('button', { name: 'Revoke invitation' });
-  await fireEvent.press(screen.getByRole('button', { name: 'Revoke invitation' }));
+  await screen.findByRole('button', { name: 'Revoke invitation for your partner' });
+  expect(screen.getByText('Active invitations')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Revoke invitation for your partner' }));
   expect(api).not.toHaveBeenCalledWith('/households/current/invites/invite', undefined, 'DELETE');
+  await fireEvent.press(screen.getByRole('button', { name: 'Keep invitation' }));
+  expect(screen.getByRole('button', { name: 'Revoke invitation for your partner' })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Revoke invitation for your partner' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Confirm revocation' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith('/households/current/invites/invite', undefined, 'DELETE'));
   client.clear();

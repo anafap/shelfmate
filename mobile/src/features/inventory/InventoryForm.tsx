@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { DateField } from '@/components/DateField';
 import { Action, Field, styles } from '@/features/auth/AccountScreen';
 import { api, ApiError } from '@/lib/session';
 import { Category, InventoryItem, inventoryPath } from './types';
@@ -50,14 +51,14 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
     <Field label="Product name" value={name} onChangeText={setName} maxLength={120} editable={!busy} />
     <Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" maxLength={14} editable={!busy} />
     <Text style={styles.body}>Category: {categories.find(c => c.id === categoryId)?.name} · Unit: {unit}</Text>
-    <Field label="Expiry date (optional, YYYY-MM-DD)" value={expiryDate} onChangeText={setExpiry} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" editable={!busy} />
+    <DateField label="Expiry date (optional)" value={expiryDate} onChange={setExpiry} disabled={busy} />
     {!!expiryDate.trim() && <Choices label="Date type" values={['Printed', 'Estimated'].map(value => ({ value, label: value }))} selected={expiryType} onSelect={setType} disabled={busy} />}
     {expiryType === 'Estimated' && !!expiryDate.trim() && <Text style={styles.body}>An estimated date is an editable guide, not a verified safety deadline.</Text>}
     <Action variant="secondary" title={details ? 'Hide optional details' : 'Category, unit & more details'} disabled={busy} onPress={() => setDetails(!details)} />
     {details && <>
       <Choices label="Product category" values={categories.map(c => ({ value: c.id, label: c.name }))} selected={categoryId} onSelect={setCategory} disabled={busy} />
       <Choices label="Unit" values={['piece', 'g', 'kg', 'ml', 'l', 'pack', 'bottle', 'box'].map(value => ({ value, label: value }))} selected={unit} onSelect={setUnit} disabled={busy} />
-      <Field label="Purchase date (optional, YYYY-MM-DD)" value={purchaseDate} onChangeText={setPurchase} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" editable={!busy} />
+      <DateField label="Purchase date (optional)" value={purchaseDate} onChange={setPurchase} disabled={busy} />
       <Field label="Storage location" value={location} onChangeText={setLocation} maxLength={80} editable={!busy} />
       <Field label="Notes (optional)" value={notes} onChangeText={setNotes} maxLength={2000} multiline editable={!busy} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}><Text style={[styles.body, { flex: 1 }]}>Allow item expiry reminders</Text><Switch accessibilityLabel="Allow item expiry reminders" disabled={busy} value={reminderEnabled} onValueChange={setReminder} /></View>

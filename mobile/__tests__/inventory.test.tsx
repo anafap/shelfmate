@@ -5,6 +5,11 @@ import { InventoryForm } from '@/features/inventory/InventoryForm';
 import { Category, InventoryItem, inventoryPath } from '@/features/inventory/types';
 import { api, ApiError } from '@/lib/session';
 
+async function chooseDate(label: string, date: string) {
+  await fireEvent.press(screen.getByRole('button', { name: label }));
+  await fireEvent(screen.getByTestId(`picker-${label}`), 'onValueChange', {}, new Date(`${date}T12:00:00`));
+}
+
 jest.mock('@/lib/session', () => ({ api: jest.fn(), ApiError: class extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status; } } }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
 jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: { id: 'home' }, isPending: false, isError: false }) }));
@@ -42,26 +47,18 @@ test('optional purchase details preserve unknown expiry and chosen quantity/cate
   await fireEvent.changeText(screen.getByLabelText('Quantity'), '0.5');
   await fireEvent.press(screen.getByRole('button', { name: 'Category, unit & more details' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Unit: kg' }));
-  await fireEvent.changeText(screen.getByLabelText('Purchase date (optional, YYYY-MM-DD)'), '2026-10-12');
+  await chooseDate('Purchase date (optional)', '2026-10-12');
   await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ quantity: 0.5, unit: 'kg', purchaseDate: '2026-10-12', expiryDate: null, expiryType: 'Unknown' }), 'POST')); client.clear();
 });
 test('estimated expiry is explicitly selected and labeled', async () => {
   const client = await setup(true);
   await fireEvent.changeText(screen.getByLabelText('Product name'), 'Fruit');
-  await fireEvent.changeText(screen.getByLabelText('Expiry date (optional, YYYY-MM-DD)'), '2026-10-15');
+  await chooseDate('Expiry date (optional)', '2026-10-15');
   await fireEvent.press(screen.getByRole('button', { name: 'Date type: Estimated' }));
   expect(screen.getByText('An estimated date is an editable guide, not a verified safety deadline.')).toBeTruthy();
   await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ expiryDate: '2026-10-15', expiryType: 'Estimated' }), 'POST')); client.clear();
-});
-test('invalid calendar dates do not submit a mutation', async () => {
-  const client = await setup(true);
-  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Milk');
-  await fireEvent.changeText(screen.getByLabelText('Expiry date (optional, YYYY-MM-DD)'), '2026-02-30');
-  await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
-  expect(await screen.findByText('Expiry date must be a valid calendar date between 1900 and 2100.')).toBeTruthy();
-  expect(api).not.toHaveBeenCalled(); client.clear();
 });
 test('editing a stale version requires reloading and reviewing before another save', async () => {
   items = [milk]; let latest = milk;

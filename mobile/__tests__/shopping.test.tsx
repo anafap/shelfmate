@@ -38,7 +38,8 @@ test('purchase offers a separate reviewed transfer with quantity and expiry', as
   expect(api).toHaveBeenCalledWith(`${path}/milk/purchase`, { version: 'v1', operationId: 'v1', purchased: true }, 'POST');
   await fireEvent.press(screen.getByRole('button', { name: 'Transfer Milk to inventory' }));
   await fireEvent.changeText(screen.getByLabelText('Quantity'), '2');
-  await fireEvent.changeText(screen.getByLabelText('Expiry date (optional, YYYY-MM-DD)'), '2026-10-20');
+  await fireEvent.press(screen.getByRole('button', { name: 'Expiry date (optional)' }));
+  await fireEvent(screen.getByTestId('picker-Expiry date (optional)'), 'onValueChange', {}, new Date('2026-10-20T12:00:00'));
   await fireEvent.press(screen.getByRole('button', { name: 'Transfer to inventory' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${path}/milk/transfer-to-inventory`, expect.objectContaining({ version: 'v2', confirmSeparateItem: false, item: expect.objectContaining({ quantity: 2, expiryDate: '2026-10-20', expiryType: 'Printed' }) }), 'POST'));
   expect(await screen.findByText('Purchase transferred to inventory.')).toBeTruthy(); client.clear();

@@ -35,7 +35,7 @@ export default function DashboardScreen() {
           <Text style={styles.heading}>{data.activeCount === 0 ? 'Your shelves are ready' : 'No dates to prioritize'}</Text>
           <Text style={styles.body}>{data.activeCount === 0 ? 'Add your first product in Inventory to start your household overview.' : 'Your active products have no expiry dates. Add a printed or explicitly estimated date when you have one.'}</Text>
         </> : data.useFirst.map(item => <View key={item.id} style={ui.item}>
-          <View style={ui.toolbar}><Text accessibilityRole="header" style={[styles.heading, { flex: 1 }]}>{item.name}</Text><Text style={styles.body}>{item.quantity} {item.unit}</Text></View>
+          <View style={ui.toolbar}><Link href={{ pathname: '/inventory', params: { itemId: item.id } }} accessibilityRole="button" style={[styles.heading, ui.productLink]}>{item.name}</Link><Text style={styles.body}>{item.quantity} {item.unit}</Text></View>
           <Text style={[styles.body, { fontWeight: '600', color: item.expiryStatus === 'Expired' ? '#9c2727' : '#22634b' }]}>{expiryLabel(item)}</Text>
           <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated date' : 'Printed expiry date'}: {item.expiryDate} · {item.storageLocation}</Text>
           {item.expiryType === 'Estimated' && <Text style={ui.estimatedNote}>An estimated date is an editable guide, not a verified safety deadline.</Text>}
@@ -69,4 +69,5 @@ const ui = StyleSheet.create({
   estimatedNote: { color: '#596b62', fontSize: 13, lineHeight: 19 },
   link: { minHeight: 48, padding: 14, backgroundColor: '#f0f5f1', borderRadius: 10, color: '#22634b', fontSize: 16, fontWeight: '600' },
   smallLink: { color: '#22634b', fontSize: 15, fontWeight: '600' },
+  productLink: { flex: 1, textDecorationLine: 'underline' },
 });

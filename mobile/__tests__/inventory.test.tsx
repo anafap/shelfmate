@@ -5,6 +5,9 @@ import { InventoryForm } from '@/features/inventory/InventoryForm';
 import { Category, InventoryItem, inventoryPath } from '@/features/inventory/types';
 import { api, ApiError } from '@/lib/session';
 
+let mockRouteParams: { itemId?: string } = {};
+jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), useLocalSearchParams: () => mockRouteParams }));
+
 async function chooseDate(label: string, date: string) {
   await fireEvent.press(screen.getByRole('button', { name: label }));
   await fireEvent(screen.getByTestId(`picker-${label}`), 'onValueChange', {}, new Date(`${date}T12:00:00`));
@@ -31,7 +34,15 @@ async function setup(form = false) {
   await render(<QueryClientProvider client={client}>{form ? <InventoryForm item={null} categories={categories} onSaved={async () => {}} onCancel={() => {}} onReload={() => {}} /> : <InventoryScreen />}</QueryClientProvider>);
   return client;
 }
-beforeEach(() => { jest.clearAllMocks(); items = []; jest.mocked(api).mockImplementation(defaultApi); });
+beforeEach(() => { jest.clearAllMocks(); items = []; mockRouteParams = {}; jest.mocked(api).mockImplementation(defaultApi); });
+test('a linked product opens by exact ID even when absent from the current page', async () => {
+  mockRouteParams = { itemId: 'milk' };
+  const client = await setup();
+  expect(await screen.findByText('Milk')).toBeTruthy();
+  expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk`);
+  expect(screen.queryByLabelText('Search products')).toBeNull();
+  expect(screen.getByText('← All products')).toBeTruthy(); client.clear();
+});
 test('empty inventory supports quick add without inventing an expiry date', async () => {
   const client = await setup();
   expect(await screen.findByText('No matching products yet')).toBeTruthy();

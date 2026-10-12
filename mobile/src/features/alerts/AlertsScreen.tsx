@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'expo-router';
 import { ActivityIndicator, Platform, Switch, Text, View } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
 import { Action, Field, styles } from '@/features/auth/AccountScreen';
@@ -39,7 +40,7 @@ export default function AlertsScreen() {
       {alerts.isError && <Text accessibilityRole="alert" style={styles.error}>{alerts.error.message}{alerts.data ? ' Showing previously loaded reminders.' : ''}</Text>}
       {!alerts.isPending && !alerts.isError && alerts.data?.length === 0 && <View style={styles.card}><Text style={styles.heading}>{preferences.data?.inAppEnabled === false ? 'In-app reminders are off' : 'No items to review right now'}</Text><Text style={styles.body}>Only active items with dates and enabled reminders appear here. Your category and reminder-window preferences apply.</Text></View>}
       {alerts.data?.map(item => <View key={item.id} style={styles.card}>
-        <Text accessibilityRole="header" style={styles.heading}>{item.name}</Text><Text style={styles.body}>{expiryLabel(item)}</Text>
+        <Link href={{ pathname: '/inventory', params: { itemId: item.id } }} accessibilityRole="button" style={[styles.heading, { textDecorationLine: 'underline' }]}>{item.name}</Link><Text style={styles.body}>{expiryLabel(item)}</Text>
         <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated date' : 'Printed expiry date'}: {item.expiryDate} · {item.quantity} {item.unit}</Text>
         <Text style={styles.body}>{item.expiryType === 'Estimated' ? 'Estimated dates are guides, not verified safety deadlines. ' : ''}Review the product and its packaging instructions.</Text>
       </View>)}

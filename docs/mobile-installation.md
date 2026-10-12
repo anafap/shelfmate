@@ -12,6 +12,33 @@ Copy the APK to each phone (USB, a private file transfer, or a file share you co
 
 On phone A, create an account and household. In Settings, generate an invitation. On phone B, create a separate account and join using that invite. Add an inventory item on one phone and confirm it appears on the other; then test shopping, purchase, and the explicit transfer into inventory. The computer must remain reachable for these tests. In-app alerts work, but push delivery is not configured until a real Expo project and Android Firebase credentials are added.
 
+## Configure Android push test builds
+
+Android remote push cannot run in Expo Go. Use the existing `development` EAS build profile and install its development APK on each test phone. Expo requires an EAS project, an Android Firebase app configuration, and FCM V1 credentials for this build. See [Expo push setup](https://docs.expo.dev/push-notifications/push-notifications-setup/) and [EAS development builds](https://docs.expo.dev/tutorial/eas/android-development-build/).
+
+1. Sign in to the Expo account that should own ShelfMate and link the app from `mobile`:
+
+   ```sh
+   npx eas-cli@latest login
+   npx eas-cli@latest init
+   ```
+
+   This project uses `app.config.js`; confirm the generated EAS project UUID is available as `extra.eas.projectId`. Set `EXPO_PUBLIC_EAS_PROJECT_ID` to that UUID in `mobile/.env` for local push registration. The project ID is public and is not a credential.
+
+2. In Firebase Console, create or select a Firebase project and register an Android app with package ID `com.anafap.shelfmate`. Download its `google-services.json` to `mobile/google-services.json`. This path is ignored by Git. Add the file to the EAS `development` environment as a file variable named `SHELFMATE_GOOGLE_SERVICES_FILE`; the app config already uses this variable as `android.googleServicesFile`.
+
+3. In the Firebase project, create an FCM V1 service account key. Upload it to the linked Expo project under Android push credentials using `npx eas-cli@latest credentials --platform android`. Keep the downloaded service account key private; never add it to the repository or the client app.
+
+4. Build the Android development client:
+
+   ```sh
+   npx eas-cli@latest build --platform android --profile development
+   ```
+
+   Install the resulting APK on both phones. Set `EXPO_PUBLIC_API_URL` in `mobile/.env` to the computer's reachable LAN address, then run `npx expo start --dev-client` from `mobile`.
+
+5. Sign in on each phone and enable push in Alerts. Add an active inventory item with an expiry date matching a configured reminder offset, set the preferred delivery time to a time that has already passed in the household time zone, and wait for the server worker to dispatch it. Confirm one push arrives on each opted-in phone. Then consume or discard the item and confirm it is no longer eligible for reminders. Expo push delivery can be delayed or unavailable; the Alerts tab remains the in-app fallback.
+
 ## Start the database and API on your computer
 
 Follow the root [README](../README.md#local-setup) to configure your ignored `.env`, start PostgreSQL, apply migrations and start the API on `http://0.0.0.0:5050`. Keep it running.

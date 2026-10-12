@@ -1,8 +1,9 @@
+import { useLiveUpdates } from '@/features/sync/useLiveUpdates';
 import { SessionProvider, useSession } from '@/features/auth/SessionProvider';
 import { AccountScreen } from '@/features/auth/AccountScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Tabs } from 'expo-router';
-import { Text, useWindowDimensions } from 'react-native';
+import { Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const queryClient = new QueryClient();
@@ -18,8 +19,9 @@ export default function RootLayout() {
 function Navigation() {
   const { session, loading, error } = useSession();
   const { width } = useWindowDimensions();
+  const syncStatus = useLiveUpdates(session?.user.id);
   if (loading || error || !session) return <AccountScreen />;
-  return <Tabs screenOptions={{
+  return <View style={{ flex: 1 }}>{!!syncStatus && <Text accessibilityLiveRegion="polite" style={{ padding: 8, backgroundColor: '#f0f5f1', color: '#22634b', fontSize: 13 }}>{syncStatus}</Text>}<Tabs screenOptions={{
     tabBarPosition: width >= 1000 ? 'left' : 'bottom',
     tabBarActiveTintColor: '#22634b', tabBarInactiveTintColor: '#596b62',
     tabBarActiveBackgroundColor: '#eaf3ed',
@@ -35,5 +37,5 @@ function Navigation() {
           <Tabs.Screen name="shopping" options={{ title: 'Shopping', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>✓</Text> }} />
           <Tabs.Screen name="alerts" options={{ title: 'Alerts', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>♧</Text> }} />
           <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
-        </Tabs>;
+        </Tabs></View>;
 }

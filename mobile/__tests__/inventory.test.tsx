@@ -100,6 +100,17 @@ test.each(['consume', 'discard'] as const)('%s requires confirmation before movi
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk/${action}`, { version: 'v1' }, 'POST'));
   expect(await screen.findByText('Item moved to history.')).toBeTruthy(); client.clear();
 });
+test('history keeps purchase date and notes accessible without active actions', async () => {
+  items = [{ ...milk, status: 'Consumed', expiryStatus: null, purchaseDate: '2026-10-01', notes: 'Used for dinner' }];
+  const client = await setup();
+  await fireEvent.press(screen.getByRole('button', { name: 'More filters' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Status filter: Consumed' }));
+  await screen.findByRole('button', { name: 'Options for Milk' });
+  await fireEvent.press(screen.getByRole('button', { name: 'Options for Milk' }));
+  expect(screen.getByText('Purchased: 2026-10-01')).toBeTruthy();
+  expect(screen.getByText('Used for dinner')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull(); client.clear();
+});
 test('search and category filters request household-scoped server results', async () => {
   const client = await setup();
   await screen.findByText('No matching products yet');

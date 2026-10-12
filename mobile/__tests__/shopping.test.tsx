@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import ShoppingScreen, { ShoppingItem } from '@/features/shopping/ShoppingScreen';
+import { inventoryPath } from '@/features/inventory/types';
 import { api } from '@/lib/session';
 jest.mock('@/lib/session', () => ({ api: jest.fn() }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
@@ -10,6 +11,7 @@ let items: ShoppingItem[] = [];
 const path = '/households/current/shopping-items';
 beforeEach(() => { jest.clearAllMocks(); items = []; jest.mocked(api).mockImplementation(async (url, body) => {
   if (url === '/households/current/categories') return [{ id: 'dairy', key: 'dairy', name: 'Dairy' }] as never;
+  if (url.startsWith(`${inventoryPath}?`)) return { items: [], total: 0, page: 1, pageSize: 100 } as never;
   if (url === path && body === undefined) return items as never;
   return undefined as never;
 }); });
@@ -29,6 +31,7 @@ test('purchase offers a separate reviewed transfer with quantity and expiry', as
     if (url.endsWith('/purchase')) { items = [{ ...base, status: 'Purchased', version: 'v2', purchasedByName: 'Ana', purchasedAt: '2026-10-12T12:00:00Z' }]; return items[0] as never; }
     if (url.endsWith('/transfer-to-inventory')) { items = [{ ...items[0], linkedInventoryItemId: 'inventory-id' }]; return {} as never; }
     if (url === '/households/current/categories') return [{ id: 'dairy', key: 'dairy', name: 'Dairy' }] as never;
+    if (url.startsWith(`${inventoryPath}?`)) return { items: [], total: 0, page: 1, pageSize: 100 } as never;
     return items as never;
   });
   const client = await setup(); await screen.findByRole('checkbox', { name: 'Mark Milk purchased' });
@@ -67,4 +70,26 @@ test('secondary shopping actions stay behind item options', async () => {
   await fireEvent.press(screen.getByRole('button', { name: 'Options for Milk' }));
   expect(screen.getByRole('button', { name: 'Edit shopping Milk' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Remove shopping Milk' })).toBeTruthy(); client.clear();
+});
+test('matching inventory appears before confirming a separate transfer', async () => {
+  items = [{ ...base, status: 'Purchased', version: 'v2' }];
+  jest.mocked(api).mockImplementation(async url => {
+    if (url === '/households/current/categories') return [{ id: 'dairy', key: 'dairy', name: 'Dairy' }] as never;
+    if (url.startsWith(`${inventoryPath}?`)) return { items: [{ id: 'existing', name: 'Milk', quantity: 2, unit: 'bottle', storageLocation: 'Fridge', expiryDate: '2026-10-20', expiryType: 'Printed' }], total: 1, page: 1, pageSize: 100 } as never;
+    return items as never;
+  });
+  const client = await setup(); await screen.findByRole('button', { name: 'Show purchased items' });
+  await fireEvent.press(screen.getByRole('button', { name: 'Show purchased items' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Transfer Milk to inventory' }));
+  expect(await screen.findByText('Already in inventory')).toBeTruthy();
+  expect(screen.getByText('Milk · 2 bottle')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Transfer to inventory' }));
+  expect(await screen.findByText('Review the matching product or confirm a separate item.')).toBeTruthy();
+  expect(jest.mocked(api).mock.calls.some(([url]) => url.endsWith('/transfer-to-inventory'))).toBe(false);
+  await fireEvent(screen.getByLabelText('Confirm separate inventory item'), 'valueChange', true);
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Oat milk');
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Milk');
+  await screen.findByLabelText('Confirm separate inventory item');
+  expect(screen.getByLabelText('Confirm separate inventory item').props.value).toBe(false);
+  client.clear();
 });

@@ -22,8 +22,8 @@ function dateValue(text: string, label: string): string | null {
   if (year < 1900 || year > 2100 || date.toISOString().slice(0, 10) !== value) throw new Error(`${label} must be a valid calendar date between 1900 and 2100.`);
   return value;
 }
-export function InventoryForm({ item, categories, onSaved, onCancel, onReload, initial, submit, saveLabel }: {
-  item: InventoryItem | null; categories: Category[]; onSaved: () => Promise<void>; onCancel: () => void; onReload: (item: InventoryItem) => void; initial?: { name: string; quantity?: number | null; unit?: string | null; categoryId?: string | null; notes?: string | null }; submit?: (body: unknown) => Promise<unknown>; saveLabel?: string;
+export function InventoryForm({ item, categories, onSaved, onCancel, onReload, initial, submit, saveLabel, onNameChange }: {
+  item: InventoryItem | null; categories: Category[]; onSaved: () => Promise<void>; onCancel: () => void; onReload: (item: InventoryItem) => void; initial?: { name: string; quantity?: number | null; unit?: string | null; categoryId?: string | null; notes?: string | null }; submit?: (body: unknown) => Promise<unknown>; saveLabel?: string; onNameChange?: (name: string) => void;
 }) {
   const [name, setName] = useState(item?.name ?? initial?.name ?? ''); const [quantity, setQuantity] = useState(String(item?.quantity ?? initial?.quantity ?? 1));
   const [categoryId, setCategory] = useState(item?.categoryId ?? initial?.categoryId ?? categories.find(c => c.key === 'other')?.id ?? categories[0]?.id ?? '');
@@ -48,7 +48,7 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
   const conflict = !!item && save.error instanceof ApiError && save.error.status === 409;
   return <View style={styles.card}>
     <Text style={styles.heading}>{item ? `Edit ${item.name}` : 'Add a product'}</Text>
-    <Field label="Product name" value={name} onChangeText={setName} maxLength={120} editable={!busy} />
+    <Field label="Product name" value={name} onChangeText={value => { setName(value); onNameChange?.(value); }} maxLength={120} editable={!busy} />
     <Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" maxLength={14} editable={!busy} />
     <Text style={styles.body}>Category: {categories.find(c => c.id === categoryId)?.name} · Unit: {unit}</Text>
     <DateField label="Expiry date (optional)" value={expiryDate} onChange={setExpiry} disabled={busy} />

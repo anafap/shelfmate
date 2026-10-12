@@ -27,6 +27,7 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
 }) {
   const [name, setName] = useState(item?.name ?? initial?.name ?? ''); const [quantity, setQuantity] = useState(String(item?.quantity ?? initial?.quantity ?? 1));
   const [categoryId, setCategory] = useState(item?.categoryId ?? initial?.categoryId ?? categories.find(c => c.key === 'other')?.id ?? categories[0]?.id ?? '');
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const [unit, setUnit] = useState(item?.unit ?? initial?.unit ?? 'piece');
   const [expiryDate, setExpiry] = useState(item?.expiryDate ?? '');
   const [expiryType, setType] = useState(item?.expiryType === 'Estimated' ? 'Estimated' : 'Printed');
@@ -46,17 +47,23 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
   const reload = useMutation({ mutationFn: () => api<InventoryItem>(`${inventoryPath}/${item!.id}`), onSuccess: onReload });
   const busy = save.isPending || reload.isPending;
   const conflict = !!item && save.error instanceof ApiError && save.error.status === 409;
+  const selectedCategory = categories.find(c => c.id === categoryId)?.name ?? 'Choose category';
   return <View style={styles.card}>
     <Text style={styles.heading}>{item ? `Edit ${item.name}` : 'Add a product'}</Text>
     <Field label="Product name" value={name} onChangeText={value => { setName(value); onNameChange?.(value); }} maxLength={120} editable={!busy} />
     <Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" maxLength={14} editable={!busy} />
-    <Text style={styles.body}>Category: {categories.find(c => c.id === categoryId)?.name} · Unit: {unit}</Text>
+    <View style={{ gap: 8 }}>
+      <Text style={styles.body}>Category</Text>
+      <Action variant="secondary" title={`${selectedCategory}${!item && categoryId === categories.find(c => c.key === 'other')?.id ? ' (default)' : ''} · Change`} label={`Category: ${selectedCategory}`} disabled={busy} onPress={() => setCategoryOpen(!categoryOpen)} />
+      {categoryOpen && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {[...categories].sort((a, b) => Number(b.key === 'other') - Number(a.key === 'other')).map(c => <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Choose ${c.name}`} accessibilityState={{ selected: categoryId === c.id, disabled: busy }} disabled={busy} onPress={() => { setCategory(c.id); setCategoryOpen(false); }} style={{ minHeight: 48, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: categoryId === c.id ? '#22634b' : '#dce6df', backgroundColor: categoryId === c.id ? '#22634b' : '#fff', justifyContent: 'center' }}><Text style={{ color: categoryId === c.id ? '#fff' : '#22634b', fontSize: 15 }}>{c.name}</Text></Pressable>)}
+      </View>}
+    </View>
     <DateField label="Expiry date (optional)" value={expiryDate} onChange={setExpiry} disabled={busy} />
     {!!expiryDate.trim() && <Choices label="Date type" values={['Printed', 'Estimated'].map(value => ({ value, label: value }))} selected={expiryType} onSelect={setType} disabled={busy} />}
     {expiryType === 'Estimated' && !!expiryDate.trim() && <Text style={styles.body}>An estimated date is an editable guide, not a verified safety deadline.</Text>}
-    <Action variant="secondary" title={details ? 'Hide optional details' : 'Category, unit & more details'} disabled={busy} onPress={() => setDetails(!details)} />
+    <Action variant="secondary" title={details ? 'Hide optional details' : 'Unit & more details'} disabled={busy} onPress={() => setDetails(!details)} />
     {details && <>
-      <Choices label="Product category" values={categories.map(c => ({ value: c.id, label: c.name }))} selected={categoryId} onSelect={setCategory} disabled={busy} />
       <Choices label="Unit" values={['piece', 'g', 'kg', 'ml', 'l', 'pack', 'bottle', 'box'].map(value => ({ value, label: value }))} selected={unit} onSelect={setUnit} disabled={busy} />
       <DateField label="Purchase date (optional)" value={purchaseDate} onChange={setPurchase} disabled={busy} />
       <Field label="Storage location" value={location} onChangeText={setLocation} maxLength={80} editable={!busy} />

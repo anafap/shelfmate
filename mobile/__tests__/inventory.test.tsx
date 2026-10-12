@@ -47,6 +47,8 @@ test('empty inventory supports quick add without inventing an expiry date', asyn
   const client = await setup();
   expect(await screen.findByText('No matching products yet')).toBeTruthy();
   await fireEvent.press(screen.getByRole('button', { name: 'Add product' }));
+  expect(screen.getByRole('button', { name: 'Category: Other' })).toBeTruthy();
+  expect(screen.getByText('Other (default) · Change')).toBeTruthy();
   await fireEvent.changeText(screen.getByLabelText('Product name'), 'Rice');
   await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ name: 'Rice', quantity: 1, categoryId: 'other', unit: 'piece', expiryDate: null, expiryType: 'Unknown' }), 'POST'));
@@ -56,11 +58,22 @@ test('optional purchase details preserve unknown expiry and chosen quantity/cate
   const client = await setup(true);
   await fireEvent.changeText(screen.getByLabelText('Product name'), 'Loose produce');
   await fireEvent.changeText(screen.getByLabelText('Quantity'), '0.5');
-  await fireEvent.press(screen.getByRole('button', { name: 'Category, unit & more details' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Unit & more details' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Unit: kg' }));
   await chooseDate('Purchase date (optional)', '2026-10-12');
   await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ quantity: 0.5, unit: 'kg', purchaseDate: '2026-10-12', expiryDate: null, expiryType: 'Unknown' }), 'POST')); client.clear();
+});
+test('category can be changed directly without opening optional details', async () => {
+  const client = await setup(true);
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Milk');
+  await fireEvent.press(screen.getByRole('button', { name: 'Category: Other' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Choose Dairy' }));
+  expect(screen.getByRole('button', { name: 'Category: Dairy' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Choose Dairy' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ categoryId: 'dairy' }), 'POST'));
+  client.clear();
 });
 test('estimated expiry is explicitly selected and labeled', async () => {
   const client = await setup(true);

@@ -120,3 +120,18 @@ test('network error offers a refresh and does not present fabricated inventory',
   await fireEvent.press(screen.getByRole('button', { name: 'Refresh inventory' }));
   expect(await screen.findByText('No matching products yet')).toBeTruthy(); client.clear();
 });
+
+test('history and sorting are available through more filters, and clear restores active inventory', async () => {
+  const client = await setup();
+  await screen.findByText('No matching products yet');
+  expect(screen.queryByRole('button', { name: 'Status filter: Consumed' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'More filters' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Status filter: Consumed' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Sort: Name' }));
+  await waitFor(() => expect(jest.mocked(api).mock.calls.some(([path]) => path.includes('status=Consumed') && path.includes('sort=name'))).toBe(true));
+  await fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Status filter: Active' }).props.accessibilityState.selected).toBe(true));
+  expect(screen.getByRole('button', { name: 'Sort: Nearest date' }).props.accessibilityState.selected).toBe(true);
+  expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+  client.clear();
+});

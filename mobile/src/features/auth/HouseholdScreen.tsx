@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Share, Text, View } from 'react-native';
+import { Link } from 'expo-router';
+import { ActivityIndicator, Platform, Share, Text, View } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
 import { api, ApiError, signOut } from '@/lib/session';
 import { Action, Field, styles } from './AccountScreen';
@@ -34,7 +35,7 @@ export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
     await queryClient.invalidateQueries({ queryKey: ['invites'] });
   }});
   function run(task: () => Promise<unknown>) { setMessage(''); action.mutate(task); }
-  return <FoundationScreen title={settings ? 'Account & household' : household.data?.name ?? 'Set up your household'} description={settings ? `Signed in as ${session?.user.displayName ?? ''}` : 'Invite one person to share your household using their own account.'}>
+  return <FoundationScreen title={settings ? 'Account & household' : household.data?.name ?? 'Set up your household'} description={settings ? `Manage your account and the people in your home. Signed in as ${session?.user.displayName ?? ''}.` : household.data ? `Welcome back, ${session?.user.displayName ?? 'housemate'}. Let’s see what’s at home.` : 'Start a home together, or join one with your partner’s invitation code.'}>
     <View style={styles.card}>
       {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry" onPress={() => { household.refetch(); }} /></> : !household.data ? <>
         <Text style={styles.heading}>Create a household</Text>
@@ -50,7 +51,11 @@ export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
         <Text style={styles.body}>Time zone: {household.data.timeZone}</Text>
         {members.isPending ? <ActivityIndicator /> : members.isError ? <><Text style={styles.error}>{members.error.message}</Text><Action title="Retry members" onPress={() => { members.refetch(); }} /></> : members.data?.map(m => <Text key={m.userId} style={styles.body}>{m.displayName} · {m.role}</Text>)}
         {members.data?.length === 1 && <Text style={styles.body}>Your household is ready. Invite your partner from Settings.</Text>}
-        {!settings && <Text style={styles.body}>Open Inventory to add and manage your household products. Shopping and reminders are coming in the next phases.</Text>}
+        {!settings && <View style={{ gap: 16, padding: 24, borderRadius: 16, backgroundColor: '#edf5ef' }}>
+          <Text style={styles.heading}>Know what’s on your shelf</Text>
+          <Text style={styles.body}>Add products, find what you need, and review the dates you’ve entered. Your shared inventory starts here.</Text>
+          <Link href="/inventory" style={{ color: '#22634b', fontSize: 16, fontWeight: '700', minHeight: 48, paddingVertical: 14 }}>Open inventory →</Link>
+        </View>}
         {settings && owner && <>
           <Text style={styles.heading}>Invite your partner</Text>
           <Field label="Partner email (optional)" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" maxLength={254} />
@@ -58,7 +63,9 @@ export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
           {invite && <>
             <Text style={styles.body}>Share this code privately. It can be used once, before {new Date(invite.expiresAt).toLocaleString()}.</Text>
             <Text selectable style={styles.body}>{invite.token}</Text>
-            <Action title="Share invitation code" onPress={() => run(async () => { await Share.share({ message: `Join my ShelfMate household. Sign in with your own account and enter this invitation code: ${invite.token}` }); })} />
+            {Platform.OS !== 'web' || (typeof navigator !== 'undefined' && typeof navigator.share === 'function')
+              ? <Action title="Share invitation code" onPress={() => run(async () => { await Share.share({ message: `Join my ShelfMate household. Sign in with your own account and enter this invitation code: ${invite.token}` }); })} />
+              : <Text style={styles.body}>Select and copy the code above to share it privately.</Text>}
           </>}
           {invites.isError && <><Text style={styles.error}>{invites.error.message}</Text><Action title="Retry invitations" onPress={() => { invites.refetch(); }} /></>}
           {invites.data?.filter(i => !i.redeemedAt && !i.revokedAt && Date.parse(i.expiresAt) > Date.now()).map(i => <View key={i.id} style={{ gap: 8 }}>
@@ -70,12 +77,12 @@ export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
             </> : <Action title="Revoke invitation" disabled={action.isPending} onPress={() => setRevokeId(i.id)} />}
           </View>)}
         </>}
-        <Action title="Refresh household" disabled={action.isPending} onPress={() => run(async () => { await household.refetch(); await members.refetch(); })} />
+        <Action variant="secondary" title="Refresh household" disabled={action.isPending} onPress={() => run(async () => { await household.refetch(); await members.refetch(); })} />
       </>}
       {action.isPending && <ActivityIndicator accessibilityLabel="Saving" />}
       {action.isError && <Text accessibilityRole="alert" style={styles.error}>{action.error.message}</Text>}
       {!!message && <Text accessibilityLiveRegion="polite" style={styles.body}>{message}</Text>}
-      <Action title="Sign out" disabled={action.isPending} onPress={() => run(signOut)} />
+      {settings && <Action variant="secondary" title="Sign out" disabled={action.isPending} onPress={() => run(signOut)} />}
     </View>
   </FoundationScreen>;
 }

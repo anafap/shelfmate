@@ -1,22 +1,29 @@
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-export function FoundationScreen({ title, description, children }: {
-  title: string; description: string; children?: React.ReactNode;
+export function FoundationScreen({ title, description, children, compact = false }: {
+  title: string; description: string; children?: React.ReactNode; compact?: boolean;
 }) {
+  const { width } = useWindowDimensions();
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
-      <Text style={styles.eyebrow}>YOUR HOUSEHOLD, TOGETHER</Text>
-      <Text style={styles.title} accessibilityRole="header">{title}</Text>
-      <Text style={styles.body}>{description}</Text>
-      <Text style={styles.notice}>Development build · Shopping and reminders are not available yet.</Text>
-      {children}
+    <ScrollView style={styles.background} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { padding: width < 600 ? 20 : 40 }]}>
+      <View style={[styles.content, compact && styles.compact]}>
+        <View style={styles.heading}>
+          <Text style={styles.eyebrow}>SHELFMATE / YOUR HOUSEHOLD</Text>
+          <Text style={styles.title} accessibilityRole="header">{title}</Text>
+          <Text style={styles.body}>{description}</Text>
+        </View>
+        {children}
+      </View>
     </ScrollView>
   );
 }
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, padding: 24, gap: 20, backgroundColor: '#f7f8f2' },
-  eyebrow: { color: '#22634b', fontWeight: '700', letterSpacing: 1 },
-  title: { fontSize: 32, fontWeight: '700', color: '#193b2e' },
-  body: { fontSize: 18, lineHeight: 28, color: '#33473d' },
-  notice: { fontSize: 16, lineHeight: 24, color: '#4c5c53' },
+  background: { backgroundColor: '#f5f7f5' },
+  page: { flexGrow: 1, alignItems: 'center' },
+  content: { width: '100%', maxWidth: 1120, gap: 24, paddingBottom: 24 },
+  compact: { maxWidth: 560 },
+  heading: { gap: 10, paddingVertical: 8 },
+  eyebrow: { color: '#48725e', fontSize: 11, fontWeight: '700', letterSpacing: 2 },
+  title: { fontSize: 34, fontWeight: '700', color: '#193b2e', letterSpacing: -1 },
+  body: { fontSize: 16, lineHeight: 25, color: '#596b62', maxWidth: 650 },
 });

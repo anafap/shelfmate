@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import { HouseholdScreen } from '@/features/auth/HouseholdScreen';
 import { api } from '@/lib/session';
 
@@ -49,4 +50,25 @@ test('owner must confirm before revoking an invitation', async () => {
   await fireEvent.press(screen.getByRole('button', { name: 'Confirm revocation' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith('/households/current/invites/invite', undefined, 'DELETE'));
   client.clear();
+});
+test('web invitation gives a copy path when browser sharing is unavailable', async () => {
+  const originalPlatform = Platform.OS;
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  jest.mocked(api).mockImplementation(async (path, _body, method) => {
+    if (path === '/households/current') return household as never;
+    if (path === '/households/current/members') return [{ userId: 'owner', displayName: 'Ana', role: 'Owner' }] as never;
+    if (path === '/households/current/invites' && method !== 'POST') return [] as never;
+    return { id: 'invite', token: 'private-code', expiresAt: '2099-01-01' } as never;
+  });
+  try {
+    const client = await setup();
+    await screen.findByRole('button', { name: 'Create invitation' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
+    expect(await screen.findByText('private-code')).toBeTruthy();
+    expect(screen.getByText('Select and copy the code above to share it privately.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Share invitation code' })).toBeNull();
+    client.clear();
+  } finally {
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatform });
+  }
 });

@@ -1,7 +1,8 @@
 import { SessionProvider, useSession } from '@/features/auth/SessionProvider';
 import { AccountScreen } from '@/features/auth/AccountScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Tabs } from 'expo-router';
+import { Link, Tabs } from 'expo-router';
+import { Text, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const queryClient = new QueryClient();
@@ -16,12 +17,23 @@ export default function RootLayout() {
 }
 function Navigation() {
   const { session, loading, error } = useSession();
+  const { width } = useWindowDimensions();
   if (loading || error || !session) return <AccountScreen />;
-  return <Tabs screenOptions={{ tabBarActiveTintColor: '#22634b', headerTitle: 'ShelfMate' }}>
-          <Tabs.Screen name="index" options={{ title: 'Home' }} />
-          <Tabs.Screen name="inventory" options={{ title: 'Inventory' }} />
-          <Tabs.Screen name="shopping" options={{ title: 'Shopping' }} />
-          <Tabs.Screen name="alerts" options={{ title: 'Alerts' }} />
+  return <Tabs screenOptions={{
+    tabBarPosition: width >= 1000 ? 'left' : 'bottom',
+    tabBarActiveTintColor: '#22634b', tabBarInactiveTintColor: '#596b62',
+    tabBarActiveBackgroundColor: '#eaf3ed',
+    tabBarStyle: { backgroundColor: '#fff', borderColor: '#e0e8e2', padding: 8, ...(width >= 1000 ? { width: 210 } : { height: 76 }) },
+    tabBarItemStyle: { borderRadius: 12, minHeight: 52, marginVertical: 4 },
+    tabBarLabelStyle: { fontSize: 13, fontWeight: '600' },
+    headerTitle: 'ShelfMate', headerTitleStyle: { color: '#193b2e', fontWeight: '700' },
+    headerShadowVisible: false, headerStyle: { backgroundColor: '#fff' },
+    headerRight: () => <Link href="/settings" accessibilityLabel="Account & household settings" style={{ padding: 16, color: '#22634b', fontWeight: '600' }}>Settings</Link>,
+  }}>
+          <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>⌂</Text> }} />
+          <Tabs.Screen name="inventory" options={{ title: 'Inventory', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>▦</Text> }} />
+          <Tabs.Screen name="shopping" options={{ title: 'Shopping', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>✓</Text> }} />
+          <Tabs.Screen name="alerts" options={{ title: 'Alerts', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>♧</Text> }} />
           <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
         </Tabs>;
 }

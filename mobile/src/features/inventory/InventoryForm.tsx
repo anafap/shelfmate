@@ -9,7 +9,7 @@ export function Choices({ label, values, selected, onSelect, disabled }: {
   label: string; values: { value: string; label: string }[]; selected: string; onSelect: (value: string) => void; disabled?: boolean;
 }) {
   return <View style={{ gap: 8 }}><Text style={styles.body}>{label}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
-    {values.map(v => <Pressable key={v.value} accessibilityRole="button" accessibilityLabel={`${label}: ${v.label}`} accessibilityState={{ selected: selected === v.value, disabled }} disabled={disabled} onPress={() => onSelect(v.value)} style={{ minHeight: 48, justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#22634b', backgroundColor: selected === v.value ? '#22634b' : '#fff' }}><Text style={{ fontSize: 16, color: selected === v.value ? '#fff' : '#22634b' }}>{v.label}</Text></Pressable>)}
+    {values.map(v => <Pressable key={v.value} accessibilityRole="button" accessibilityLabel={`${label}: ${v.label}`} accessibilityState={{ selected: selected === v.value, disabled }} disabled={disabled} onPress={() => onSelect(v.value)} style={{ minHeight: 48, justifyContent: 'center', padding: 12, borderRadius: 24, borderWidth: 1, borderColor: selected === v.value ? '#22634b' : '#dce6df', backgroundColor: selected === v.value ? '#22634b' : '#fff' }}><Text style={{ fontSize: 16, color: selected === v.value ? '#fff' : '#22634b' }}>{v.label}</Text></Pressable>)}
   </ScrollView></View>;
 }
 function dateValue(text: string, label: string): string | null {
@@ -52,7 +52,7 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload }:
     <Field label="Expiry date (optional, YYYY-MM-DD)" value={expiryDate} onChangeText={setExpiry} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" editable={!busy} />
     {!!expiryDate.trim() && <Choices label="Date type" values={['Printed', 'Estimated'].map(value => ({ value, label: value }))} selected={expiryType} onSelect={setType} disabled={busy} />}
     {expiryType === 'Estimated' && !!expiryDate.trim() && <Text style={styles.body}>An estimated date is an editable guide, not a verified safety deadline.</Text>}
-    <Action title={details ? 'Hide optional details' : 'Category, unit & more details'} disabled={busy} onPress={() => setDetails(!details)} />
+    <Action variant="secondary" title={details ? 'Hide optional details' : 'Category, unit & more details'} disabled={busy} onPress={() => setDetails(!details)} />
     {details && <>
       <Choices label="Product category" values={categories.map(c => ({ value: c.id, label: c.name }))} selected={categoryId} onSelect={setCategory} disabled={busy} />
       <Choices label="Unit" values={['piece', 'g', 'kg', 'ml', 'l', 'pack', 'bottle', 'box'].map(value => ({ value, label: value }))} selected={unit} onSelect={setUnit} disabled={busy} />
@@ -69,6 +69,6 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload }:
     </>}
     {reload.isError && <Text accessibilityRole="alert" style={styles.error}>{reload.error.message}</Text>}
     <Action title={busy ? 'Please wait…' : item ? 'Save changes' : 'Save product'} disabled={busy || conflict} onPress={() => save.mutate()} />
-    <Action title="Cancel" disabled={busy} onPress={onCancel} />
+    <Action variant="secondary" title="Cancel" disabled={busy} onPress={onCancel} />
   </View>;
 }

@@ -389,6 +389,89 @@ namespace ShelfMate.Infrastructure.Migrations
                     b.ToTable("Sessions");
                 });
 
+            modelBuilder.Entity("ShelfMate.Domain.ShoppingItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LinkedInventoryItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("PurchaseOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("PurchasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("PurchasedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("LinkedInventoryItemId")
+                        .IsUnique();
+
+                    b.HasIndex("PurchasedBy");
+
+                    b.HasIndex("HouseholdId", "Status");
+
+                    b.ToTable("Shopping", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Shopping_Name", "length(btrim(\"Name\")) > 0");
+
+                            t.HasCheckConstraint("CK_Shopping_Quantity", "\"Quantity\" IS NULL OR (\"Quantity\" > 0 AND \"Quantity\" <= 1000000)");
+
+                            t.HasCheckConstraint("CK_Shopping_Status", "(\"Status\" = 'ToBuy' AND \"PurchasedBy\" IS NULL AND \"PurchasedAt\" IS NULL AND \"LinkedInventoryItemId\" IS NULL) OR (\"Status\" = 'Purchased' AND \"PurchasedBy\" IS NOT NULL AND \"PurchasedAt\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_Shopping_Unit", "\"Unit\" IS NULL OR \"Unit\" IN ('piece', 'g', 'kg', 'ml', 'l', 'pack', 'bottle', 'box')");
+                        });
+                });
+
             modelBuilder.Entity("ShelfMate.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -496,6 +579,36 @@ namespace ShelfMate.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ShelfMate.Domain.ShoppingItem", b =>
+                {
+                    b.HasOne("ShelfMate.Domain.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ShelfMate.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShelfMate.Domain.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShelfMate.Domain.InventoryItem", null)
+                        .WithMany()
+                        .HasForeignKey("LinkedInventoryItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ShelfMate.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("PurchasedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

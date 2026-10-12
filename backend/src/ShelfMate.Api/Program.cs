@@ -15,6 +15,7 @@ builder.Services.AddScoped<IDatabaseAvailability, DatabaseAvailability>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<IShoppingService, ShoppingService>();
 builder.Services.AddAuthentication("Session").AddScheme<AuthenticationSchemeOptions, SessionAuthentication>("Session", null);
 builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
@@ -54,6 +55,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapAccounts();
 app.MapInventory();
+app.MapShopping();
 app.MapGet("/api/v1/health/live", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/api/v1/health/ready", async (IDatabaseAvailability database, CancellationToken cancellationToken) =>
     await database.CanConnectAsync(cancellationToken)

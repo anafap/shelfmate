@@ -39,3 +39,11 @@ Phase 2 uses authoritative fetch/refetch; SignalR and reminder delivery remain f
 ## Phase 3 dashboard
 
 GET `/households/current/dashboard` requires current membership and returns `{householdId,householdName,householdLocalDate,activeCount,expiringSoonCount,expiryTodayOrPastCount,shoppingListCount,useFirst}`. Counts include only Active records. ExpiringSoon counts 1–7 days; today/past counts dates <= household-local today. Unknown dates count toward activeCount but not date-based counts or Use First. Use First includes the first ten Active items with non-null dates, ordered by expiry date, then name and ID; it uses the inventory item DTO including Printed/Estimated labels. `shoppingListCount` is null until phase 4, never a fabricated zero. Reads use one consistent database snapshot and one captured clock instant. No schema migration is needed.
+
+## Phase 4 shopping
+
+Member-scoped `/households/current/shopping-items`: GET returns item list; POST `{name,categoryId?,quantity?,unit?,notes?}` creates; PATCH `/{id}` accepts those fields and required `version`; DELETE `/{id}?version=` removes after version checking. Names/quantities/units/notes use inventory bounds. DTO includes status, version, purchaser ID/name/time, linked inventory ID and audit fields.
+
+POST `/{id}/purchase` takes `{version,purchased,operationId}`. Operation ID must be a UUID, retained by the client on retry. Identical last-operation retries return the record without toggling or changing purchaser/time. Stale unrelated versions return 409. Unchecking clears purchase metadata; transferred items cannot be unchecked.
+
+POST `/{id}/transfer-to-inventory` takes `{version,item:<inventory create fields>,confirmSeparateItem:false}`. Purchase and transfer are separate. Transfer locks the shopping row and creates/link inventory in one transaction; repeated/concurrent transfer returns the same inventory record, even after a lost response. Existing active inventory with the same name requires explicit `confirmSeparateItem:true`; otherwise 409 prompts review. Only purchased records transfer. Dashboard shoppingListCount now counts ToBuy records.

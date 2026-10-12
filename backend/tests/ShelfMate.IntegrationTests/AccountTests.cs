@@ -345,7 +345,7 @@ public sealed class AccountTests : IAsyncLifetime
         await owner.PostAsJsonAsync($"{InventoryPath}/{discarded.Id}/discard", new TransitionRequest(discarded.Version));
         var dashboard = (await owner.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
         Assert.Equal(6, dashboard.ActiveCount); Assert.Equal(2, dashboard.ExpiringSoonCount); Assert.Equal(2, dashboard.ExpiryTodayOrPastCount);
-        Assert.Null(dashboard.ShoppingListCount);
+        Assert.Equal(0, dashboard.ShoppingListCount);
         Assert.Equal(new[] { yesterday.Id, today.Id, tomorrow.Id, seven.Id, eight.Id }, dashboard.UseFirst.Select(x => x.Id));
         Assert.Equal("Estimated", dashboard.UseFirst[1].ExpiryType);
         var shared = (await member.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
@@ -388,6 +388,75 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(new DateOnly(2026, 10, 13), dashboard.HouseholdLocalDate);
         Assert.Equal(-1, dashboard.UseFirst.Single().DaysRemaining);
         Assert.Equal("Expired", dashboard.UseFirst.Single().ExpiryStatus);
+    }
+
+    private const string ShoppingPath = "/api/v1/households/current/shopping-items";
+    private static async Task<ShoppingResult> AddShopping(HttpClient client, string name = "Milk")
+    {
+        var response = await client.PostAsJsonAsync(ShoppingPath, new SaveShoppingRequest(name));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ShoppingResult>())!;
+    }
+    [Fact]
+    public async Task ShoppingPurchaseAndConcurrentTransferAreRetrySafe()
+    {
+        var (owner, _) = await Register("owner"); var (member, _) = await Register("member");
+        await Create(owner); await Redeem(member, (await Invite(owner)).Token);
+        var item = await AddShopping(owner);
+        Assert.Single((await member.GetFromJsonAsync<List<ShoppingResult>>(ShoppingPath))!);
+        Assert.Equal(1, (await owner.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!.ShoppingListCount);
+        var request = new PurchaseRequest(item.Version, true, Guid.NewGuid());
+        var first = await member.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/purchase", request);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var bought = (await first.Content.ReadFromJsonAsync<ShoppingResult>())!;
+        Assert.Equal("member", bought.PurchasedByName); Assert.NotNull(bought.PurchasedAt);
+        var retry = await member.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/purchase", request);
+        Assert.Equal(bought, await retry.Content.ReadFromJsonAsync<ShoppingResult>());
+        Assert.Equal(0, (await owner.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!.ShoppingListCount);
+        var transfer = new TransferRequest(bought.Version, Product());
+        var replies = await Task.WhenAll(owner.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/transfer-to-inventory", transfer), member.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/transfer-to-inventory", transfer));
+        Assert.All(replies, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Equal((await replies[0].Content.ReadFromJsonAsync<InventoryResult>())!.Id, (await replies[1].Content.ReadFromJsonAsync<InventoryResult>())!.Id);
+        Assert.Single((await owner.GetFromJsonAsync<InventoryPage>(InventoryPath))!.Items);
+        var linked = (await owner.GetFromJsonAsync<List<ShoppingResult>>(ShoppingPath))!.Single();
+        Assert.NotNull(linked.LinkedInventoryItemId);
+        Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/purchase", new PurchaseRequest(linked.Version, false, Guid.NewGuid()))).StatusCode);
+    }
+    [Fact]
+    public async Task ShoppingRequiresDuplicateReviewAndProtectsOtherHouseholds()
+    {
+        var (owner, _) = await Register("owner"); var (outsider, _) = await Register("outsider");
+        await Create(owner); await Create(outsider); await AddProduct(owner);
+        var item = await AddShopping(owner);
+        Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/transfer-to-inventory", new TransferRequest(item.Version, Product()))).StatusCode);
+        var purchase = await owner.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/purchase", new PurchaseRequest(item.Version, true, Guid.NewGuid()));
+        var bought = (await purchase.Content.ReadFromJsonAsync<ShoppingResult>())!;
+        var body = new TransferRequest(bought.Version, Product());
+        Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/transfer-to-inventory", body)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/transfer-to-inventory", body with { ConfirmSeparateItem = true })).StatusCode);
+        Assert.Equal(2, (await owner.GetFromJsonAsync<InventoryPage>(InventoryPath))!.Items.Count);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/transfer-to-inventory", body)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.PatchAsJsonAsync($"{ShoppingPath}/{item.Id}", new SaveShoppingRequest("Hacked", Version: bought.Version))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.DeleteAsync($"{ShoppingPath}/{item.Id}?version={bought.Version}")).StatusCode);
+    }
+    [Fact]
+    public async Task ShoppingEditsUncheckRemovalAndValidationAreVersionChecked()
+    {
+        var (client, _) = await Register("owner"); await Create(client);
+        var item = await AddShopping(client);
+        var edited = await client.PatchAsJsonAsync($"{ShoppingPath}/{item.Id}", new SaveShoppingRequest("Bread", Quantity: 2, Unit: "pack", Notes: "Wholemeal", Version: item.Version));
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        var current = (await edited.Content.ReadFromJsonAsync<ShoppingResult>())!;
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"{ShoppingPath}/{item.Id}?version={item.Version}")).StatusCode);
+        var bought = await client.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/purchase", new PurchaseRequest(current.Version, true, Guid.NewGuid()));
+        current = (await bought.Content.ReadFromJsonAsync<ShoppingResult>())!;
+        var uncheckedReply = await client.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/purchase", new PurchaseRequest(current.Version, false, Guid.NewGuid()));
+        current = (await uncheckedReply.Content.ReadFromJsonAsync<ShoppingResult>())!;
+        Assert.Equal("ToBuy", current.Status); Assert.Null(current.PurchasedBy); Assert.Null(current.PurchasedAt);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{ShoppingPath}/{item.Id}?version={current.Version}")).StatusCode);
+        foreach (var invalid in new[] { new SaveShoppingRequest(" "), new SaveShoppingRequest("Bad", Quantity: -1), new SaveShoppingRequest("Bad", Unit: "invalid"), new SaveShoppingRequest("Bad", CategoryId: Guid.NewGuid()) })
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(ShoppingPath, invalid)).StatusCode);
+        Assert.Empty((await client.GetFromJsonAsync<List<ShoppingResult>>(ShoppingPath))!);
     }
 
     private sealed class TestClock : TimeProvider

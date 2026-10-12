@@ -31,8 +31,8 @@ test('purchase offers a separate reviewed transfer with quantity and expiry', as
     if (url === '/households/current/categories') return [{ id: 'dairy', key: 'dairy', name: 'Dairy' }] as never;
     return items as never;
   });
-  const client = await setup(); await screen.findByRole('button', { name: 'Mark Milk purchased' });
-  await fireEvent.press(screen.getByRole('button', { name: 'Mark Milk purchased' }));
+  const client = await setup(); await screen.findByRole('checkbox', { name: 'Mark Milk purchased' });
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk purchased' }));
   await screen.findByRole('button', { name: 'Transfer Milk to inventory' });
   expect(jest.mocked(api).mock.calls.some(([url]) => url.endsWith('/transfer-to-inventory'))).toBe(false);
   expect(api).toHaveBeenCalledWith(`${path}/milk/purchase`, { version: 'v1', operationId: 'v1', purchased: true }, 'POST');
@@ -45,7 +45,15 @@ test('purchase offers a separate reviewed transfer with quantity and expiry', as
 });
 test('unchecking uses the current version and an explicit false purchase action', async () => {
   items = [{ ...base, status: 'Purchased', version: 'v2' }];
-  const client = await setup(); await screen.findByRole('button', { name: 'Uncheck Milk' });
-  await fireEvent.press(screen.getByRole('button', { name: 'Uncheck Milk' }));
+  const client = await setup(); await screen.findByRole('checkbox', { name: 'Uncheck Milk' });
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Uncheck Milk' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${path}/milk/purchase`, { version: 'v2', operationId: 'v2', purchased: false }, 'POST')); client.clear();
+});
+test('secondary shopping actions stay behind item options', async () => {
+  items = [base];
+  const client = await setup(); await screen.findByText('Milk');
+  expect(screen.queryByRole('button', { name: 'Edit shopping Milk' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Options for Milk' }));
+  expect(screen.getByRole('button', { name: 'Edit shopping Milk' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Remove shopping Milk' })).toBeTruthy(); client.clear();
 });

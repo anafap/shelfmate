@@ -1,5 +1,1 @@
-import { HouseholdScreen } from '@/features/auth/HouseholdScreen';
-
-export default function HomeScreen() {
-  return <HouseholdScreen />;
-}
+export { default } from '@/features/dashboard/DashboardScreen';

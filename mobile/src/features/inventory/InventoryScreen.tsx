@@ -31,11 +31,13 @@ export default function InventoryScreen() {
   }, onSuccess: async () => {
     setTransition(null); setMessage('Item moved to history.');
     await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] });
+    await client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] });
   }});
   function filter(setter: (v: string) => void, value: string) { setter(value); setPage(1); }
   const conflict = lifecycle.error instanceof ApiError && lifecycle.error.status === 409;
   const editingId = editor && editor !== 'new' ? editor.id : null;
-  const editorForm = editor && categories.data ? <InventoryForm key={editor === 'new' ? 'new' : editor.version} item={editor === 'new' ? null : editor} categories={categories.data} onCancel={() => setEditor(null)} onReload={latest => { setEditor(latest.status === 'Active' ? latest : null); setMessage('Latest details loaded. Review before making changes.'); client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); }} onSaved={async () => { setEditor(null); setMessage('Product saved.'); setPage(1); await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); }} /> : null;
+  const editorForm = editor && categories.data ? <InventoryForm key={editor === 'new' ? 'new' : editor.version} item={editor === 'new' ? null : editor} categories={categories.data} onCancel={() => setEditor(null)} onReload={latest => { setEditor(latest.status === 'Active' ? latest : null); setMessage('Latest details loaded. Review before making changes.'); client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} onSaved={async () => { setEditor(null); setMessage('Product saved.'); setPage(1); await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] });
+    await client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} /> : null;
   return <FoundationScreen title="Inventory" description="Find what you have. Review what’s coming up. Add a product in just a few taps.">
     {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={styles.card}><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></View> : !household.data ? <View style={styles.card}><Text style={styles.body}>Create or join a household before adding inventory.</Text><Link href="/" style={{ minHeight: 48, padding: 12, color: '#22634b', fontSize: 16 }}>Go to household setup</Link></View> : <>
       <View style={styles.card}>

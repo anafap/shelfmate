@@ -4,7 +4,8 @@ public sealed record ExpiryAssessment(string Status, int? DaysRemaining, DateOnl
 
 public static class ExpiryRules
 {
-    public static ExpiryAssessment Assess(DateOnly? expiryDate, DateTimeOffset utcNow, string timeZone, int threshold = 7)
+    public const int DefaultThreshold = 7;
+    public static ExpiryAssessment Assess(DateOnly? expiryDate, DateTimeOffset utcNow, string timeZone, int threshold = DefaultThreshold)
     {
         var localDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, TimeZoneInfo.FindSystemTimeZoneById(timeZone)).DateTime);
         if (expiryDate is null) return new("Unknown", null, localDate);

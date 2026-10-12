@@ -9,6 +9,7 @@ public static class InventoryEndpoints
     public static void MapInventory(this WebApplication app)
     {
         var api = app.MapGroup("/api/v1/households/current").RequireAuthorization();
+        api.MapGet("/dashboard", (ClaimsPrincipal u, IInventoryService s) => s.Dashboard(User(u)));
         api.MapGet("/categories", (ClaimsPrincipal u, IInventoryService s) => s.Categories(User(u)));
         api.MapGet("/inventory", (ClaimsPrincipal u, IInventoryService s, Guid? category, string? status, string? search, string? sort, int? page, int? pageSize) =>
             s.List(User(u), category, status ?? "Active", search, sort ?? "expiry", page ?? 1, pageSize ?? 20));

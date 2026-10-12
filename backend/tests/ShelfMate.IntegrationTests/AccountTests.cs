@@ -328,6 +328,68 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Null(unknown.ExpiryDate); Assert.Null(unknown.DaysRemaining); Assert.Equal("Unknown", unknown.ExpiryStatus);
     }
 
+    [Fact]
+    public async Task DashboardCountsOnlyActiveItemsAndSortsNearestKnownDates()
+    {
+        var (owner, _) = await Register("owner"); var (member, _) = await Register("member"); var (outsider, _) = await Register("outsider");
+        await Create(owner); await Create(outsider); await Redeem(member, (await Invite(owner)).Token);
+        var tomorrow = await AddProduct(owner);
+        var yesterday = await AddProduct(owner, Product("Yesterday") with { ExpiryDate = new DateOnly(2026, 10, 11) });
+        var today = await AddProduct(owner, Product("Today estimated") with { ExpiryDate = new DateOnly(2026, 10, 12), ExpiryType = "Estimated" });
+        var seven = await AddProduct(owner, Product("Seven") with { ExpiryDate = new DateOnly(2026, 10, 19) });
+        var eight = await AddProduct(owner, Product("Eight") with { ExpiryDate = new DateOnly(2026, 10, 20) });
+        await AddProduct(owner, Product("Unknown") with { ExpiryDate = null, ExpiryType = "Unknown" });
+        var consumed = await AddProduct(owner, Product("Consumed") with { ExpiryDate = new DateOnly(2026, 10, 10) });
+        await owner.PostAsJsonAsync($"{InventoryPath}/{consumed.Id}/consume", new TransitionRequest(consumed.Version));
+        var discarded = await AddProduct(owner, Product("Discarded"));
+        await owner.PostAsJsonAsync($"{InventoryPath}/{discarded.Id}/discard", new TransitionRequest(discarded.Version));
+        var dashboard = (await owner.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
+        Assert.Equal(6, dashboard.ActiveCount); Assert.Equal(2, dashboard.ExpiringSoonCount); Assert.Equal(2, dashboard.ExpiryTodayOrPastCount);
+        Assert.Null(dashboard.ShoppingListCount);
+        Assert.Equal(new[] { yesterday.Id, today.Id, tomorrow.Id, seven.Id, eight.Id }, dashboard.UseFirst.Select(x => x.Id));
+        Assert.Equal("Estimated", dashboard.UseFirst[1].ExpiryType);
+        var shared = (await member.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
+        Assert.Equal(dashboard.UseFirst, shared.UseFirst); Assert.Equal(dashboard.ActiveCount, shared.ActiveCount);
+        Assert.Equal(0, (await outsider.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!.ActiveCount);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().GetAsync("/api/v1/households/current/dashboard")).StatusCode);
+        var (noHome, _) = await Register("nohome");
+        Assert.Equal(HttpStatusCode.Forbidden, (await noHome.GetAsync("/api/v1/households/current/dashboard")).StatusCode);
+    }
+
+    [Fact]
+    public async Task DashboardEmptyUnknownOnlyAndUseFirstLimitAreAccurate()
+    {
+        var (client, _) = await Register("owner"); await Create(client);
+        var empty = (await client.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
+        Assert.Equal(0, empty.ActiveCount); Assert.Empty(empty.UseFirst);
+        await AddProduct(client, Product("Unknown") with { ExpiryDate = null, ExpiryType = "Unknown" });
+        var unknown = (await client.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
+        Assert.Equal(1, unknown.ActiveCount); Assert.Equal(0, unknown.ExpiringSoonCount); Assert.Equal(0, unknown.ExpiryTodayOrPastCount); Assert.Empty(unknown.UseFirst);
+        for (var day = 24; day >= 13; day--) await AddProduct(client, Product($"Item {day}") with { ExpiryDate = new DateOnly(2026, 10, day) });
+        var limited = (await client.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
+        Assert.Equal(13, limited.ActiveCount); Assert.Equal(10, limited.UseFirst.Count);
+        Assert.Equal(new DateOnly(2026, 10, 13), limited.UseFirst.First().ExpiryDate);
+        Assert.Equal(new DateOnly(2026, 10, 22), limited.UseFirst.Last().ExpiryDate);
+    }
+
+    [Fact]
+    public async Task DashboardRecalculatesAfterDateEditsAndHouseholdMidnight()
+    {
+        var (client, _) = await Register("owner"); await Create(client);
+        var item = await AddProduct(client);
+        var response = await client.PatchAsJsonAsync($"{InventoryPath}/{item.Id}", Product() with { Version = item.Version, ExpiryDate = new DateOnly(2026, 10, 12) });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dashboard = (await client.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
+        Assert.Equal(0, dashboard.ExpiringSoonCount); Assert.Equal(1, dashboard.ExpiryTodayOrPastCount);
+        clock.Advance(TimeSpan.FromHours(12));
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<SessionResult>())!.AccessToken);
+        dashboard = (await client.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
+        Assert.Equal(new DateOnly(2026, 10, 13), dashboard.HouseholdLocalDate);
+        Assert.Equal(-1, dashboard.UseFirst.Single().DaysRemaining);
+        Assert.Equal("Expired", dashboard.UseFirst.Single().ExpiryStatus);
+    }
+
     private sealed class TestClock : TimeProvider
     {
         private DateTimeOffset now = new(2026, 10, 12, 10, 0, 0, TimeSpan.Zero);

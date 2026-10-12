@@ -12,14 +12,32 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
         var household = await (from m in db.Members join h in db.Households on m.HouseholdId equals h.Id where m.UserId == userId select h).SingleOrDefaultAsync();
         return household ?? throw Error(403, "Create or join a household to manage inventory.");
     }
-    private InventoryResult View(InventoryItem item, Household household)
+    private InventoryResult View(InventoryItem item, Household household, DateTimeOffset? snapshotTime = null)
     {
-        var expiry = ExpiryRules.Assess(item.ExpiryDate, clock.GetUtcNow(), household.TimeZone);
+        var expiry = ExpiryRules.Assess(item.ExpiryDate, snapshotTime ?? clock.GetUtcNow(), household.TimeZone);
         return new(item.Id, item.HouseholdId, item.Name, item.CategoryId, item.Quantity, item.Unit,
             item.PurchaseDate, item.ExpiryDate, item.ExpiryType, item.StorageLocation, item.Notes,
             item.Status, item.ReminderEnabled, item.Version, item.Status == "Active" ? expiry.Status : null,
             item.Status == "Active" ? expiry.DaysRemaining : null, expiry.LocalDate,
             item.CreatedBy, item.UpdatedBy, item.CreatedAt, item.UpdatedAt);
+    }
+    public async Task<DashboardResult> Dashboard(Guid userId)
+    {
+        var now = clock.GetUtcNow();
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        var household = await Household(userId);
+        var today = ExpiryRules.Assess(null, now, household.TimeZone).LocalDate;
+        var soonThrough = today.AddDays(ExpiryRules.DefaultThreshold);
+        var active = db.Inventory.AsNoTracking().Where(x => x.HouseholdId == household.Id && x.Status == "Active");
+        var counts = await active.GroupBy(x => 1).Select(g => new
+        {
+            Total = g.Count(),
+            Soon = g.Count(x => x.ExpiryDate > today && x.ExpiryDate <= soonThrough),
+            Due = g.Count(x => x.ExpiryDate <= today)
+        }).SingleOrDefaultAsync();
+        var items = await active.Where(x => x.ExpiryDate != null).OrderBy(x => x.ExpiryDate).ThenBy(x => x.Name).ThenBy(x => x.Id).Take(10).ToListAsync();
+        await transaction.CommitAsync();
+        return new(household.Id, household.Name, today, counts?.Total ?? 0, counts?.Soon ?? 0, counts?.Due ?? 0, null, items.Select(x => View(x, household, now)).ToList());
     }
     public async Task<List<CategoryResult>> Categories(Guid userId)
     {

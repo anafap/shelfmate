@@ -1,3 +1,5 @@
+import { syncExistingPushDevice } from '@/lib/push';
+import { useEffect } from 'react';
 import { useLiveUpdates } from '@/features/sync/useLiveUpdates';
 import { SessionProvider, useSession } from '@/features/auth/SessionProvider';
 import { AccountScreen } from '@/features/auth/AccountScreen';
@@ -20,6 +22,9 @@ function Navigation() {
   const { session, loading, error } = useSession();
   const { width } = useWindowDimensions();
   const syncStatus = useLiveUpdates(session?.user.id);
+  useEffect(() => {
+    if (session?.user.id) void syncExistingPushDevice().catch(() => {});
+  }, [session?.user.id]);
   if (loading || error || !session) return <AccountScreen />;
   return <View style={{ flex: 1 }}>{!!syncStatus && <Text accessibilityLiveRegion="polite" style={{ padding: 8, backgroundColor: '#f0f5f1', color: '#22634b', fontSize: 13 }}>{syncStatus}</Text>}<Tabs screenOptions={{
     tabBarPosition: width >= 1000 ? 'left' : 'bottom',

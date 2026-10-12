@@ -10,3 +10,8 @@
 .DS_Store
 *.user
 *.log
+
+# Local signing material and build artifacts
+.local/
+*.keystore
+*.jks

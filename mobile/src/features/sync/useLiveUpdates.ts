@@ -7,10 +7,11 @@ import { api, getSession } from '@/lib/session';
 
 export function useLiveUpdates(userId?: string) {
   const household = useHousehold(); const client = useQueryClient();
-  const [status, setStatus] = useState('Connecting shared updates…');
+  const [connectionState, setConnectionState] = useState<{ householdId?: string; userId?: string; status: string }>({ status: 'Connecting shared updates…' });
   const householdId = household.data?.id;
   useEffect(() => {
     if (!userId || !householdId) return;
+    const setStatus = (status: string) => setConnectionState({ householdId, userId, status });
     let stopped = false; let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const keys = ['household', 'members', 'invites', 'categories', 'inventory', 'shopping', 'dashboard', 'alerts', 'preferences'];
     function refetch(resource?: string) {
@@ -35,5 +36,5 @@ export function useLiveUpdates(userId?: string) {
     start();
     return () => { stopped = true; clearTimeout(retryTimer); foreground.remove(); connection.off('ResourceChanged'); void connection.stop(); };
   }, [client, householdId, userId]);
-  return householdId ? status : '';
+  return householdId ? connectionState.householdId === householdId && connectionState.userId === userId ? connectionState.status : 'Connecting shared updates…' : '';
 }

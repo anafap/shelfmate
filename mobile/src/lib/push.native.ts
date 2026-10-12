@@ -17,3 +17,10 @@ export async function registerPushDevice(): Promise<boolean> {
   await api('/me/push-devices', { token, platform: Platform.OS }, 'POST');
   return true;
 }
+
+export async function syncExistingPushDevice(): Promise<void> {
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+  if (!projectId || !(await Notifications.getPermissionsAsync()).granted) return;
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  await api('/me/push-devices', { token, platform: Platform.OS }, 'POST');
+}

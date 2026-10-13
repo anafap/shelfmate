@@ -5,7 +5,7 @@ import { InventoryForm } from '@/features/inventory/InventoryForm';
 import { Category, InventoryItem, inventoryPath } from '@/features/inventory/types';
 import { api, ApiError } from '@/lib/session';
 
-let mockRouteParams: { itemId?: string } = {};
+let mockRouteParams: { itemId?: string; add?: string } = {};
 jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), useLocalSearchParams: () => mockRouteParams }));
 
 async function chooseDate(label: string, date: string) {
@@ -35,6 +35,13 @@ async function setup(form = false) {
   return client;
 }
 beforeEach(() => { jest.clearAllMocks(); items = []; mockRouteParams = {}; jest.mocked(api).mockImplementation(defaultApi); });
+test('the Home add-item shortcut opens the existing product form directly', async () => {
+  mockRouteParams = { add: '1' };
+  const client = await setup();
+  expect(await screen.findByLabelText('Product name')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Save product' })).toBeTruthy();
+  client.clear();
+});
 test('a linked product opens by exact ID even when absent from the current page', async () => {
   mockRouteParams = { itemId: 'milk' };
   const client = await setup();

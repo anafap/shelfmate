@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
@@ -11,7 +11,7 @@ import { Category, InventoryItem, InventoryPage, expiryLabel, inventoryPath } fr
 
 export default function InventoryScreen() {
   const household = useHousehold(); const client = useQueryClient();
-  const params = useLocalSearchParams<{ itemId?: string }>();
+  const params = useLocalSearchParams<{ itemId?: string; add?: string }>();
   const focusedId = typeof params.itemId === 'string' ? params.itemId : undefined;
   const [searchInput, setSearchInput] = useState(''); const [search, setSearch] = useState('');
   const [category, setCategory] = useState(''); const [status, setStatus] = useState('Active');
@@ -23,6 +23,9 @@ export default function InventoryScreen() {
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const { width } = useWindowDimensions();
   const categories = useQuery({ queryKey: ['categories', household.data?.id], queryFn: () => api<Category[]>('/households/current/categories'), enabled: !!household.data, retry: false });
+  const isNewEditor = editor === 'new' || params.add === '1';
+  const editorActive = !!editor || params.add === '1';
+  function dismissEditor() { setEditor(null); if (params.add === '1') router.setParams({ add: undefined }); }
   const inventory = useQuery({ queryKey: ['inventory', household.data?.id, focusedId, category, status, search, sort, page], queryFn: async () => {
     if (focusedId) return { items: [await api<InventoryItem>(`${inventoryPath}/${focusedId}`)], total: 1, page: 1, pageSize: 20 };
     const params = new URLSearchParams({ status, search, sort, page: String(page), pageSize: '20' });
@@ -40,32 +43,32 @@ export default function InventoryScreen() {
   function filter(setter: (v: string) => void, value: string) { setter(value); setPage(1); }
   const conflict = lifecycle.error instanceof ApiError && lifecycle.error.status === 409;
   const editingId = editor && editor !== 'new' ? editor.id : null;
-  const editorForm = editor && categories.data ? <InventoryForm key={editor === 'new' ? 'new' : editor.version} item={editor === 'new' ? null : editor} categories={categories.data} onCancel={() => setEditor(null)} onReload={latest => { setEditor(latest.status === 'Active' ? latest : null); setMessage('Latest details loaded. Review before making changes.'); client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} onSaved={async () => { setEditor(null); setMessage('Product saved.'); setPage(1); await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] });
+  const editorForm = (editorActive) && categories.data ? <InventoryForm key={isNewEditor ? 'new' : editor?.version} item={isNewEditor ? null : editor as InventoryItem} categories={categories.data} onCancel={dismissEditor} onReload={latest => { setEditor(latest.status === 'Active' ? latest : null); setMessage('Latest details loaded. Review before making changes.'); client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} onSaved={async () => { dismissEditor(); setMessage('Product saved.'); setPage(1); await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] });
     await client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} /> : null;
   return <FoundationScreen title="Inventory" description={focusedId ? 'Review this household product.' : 'Find what you have. Review what’s coming up. Add a product in just a few taps.'}>
     {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={styles.card}><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></View> : !household.data ? <View style={styles.card}><Text style={styles.body}>Create or join a household before adding inventory.</Text><Link href="/" style={{ minHeight: 48, padding: 12, color: '#22634b', fontSize: 16 }}>Go to household setup</Link></View> : <>
       {focusedId ? <Link href="/inventory" accessibilityRole="button" style={ui.backLink}>← All products</Link> : <View style={styles.card}>
         <View style={ui.toolbar}><View style={{ flex: 1 }}><Text style={styles.heading}>Your products</Text><Text style={styles.body}>Shared with your household</Text></View>
-        <Action title="Add product" disabled={!categories.data?.length || !!editor || !!transition} onPress={() => { setEditor('new'); setMessage(''); }} />
+        <Action title="Add product" disabled={!categories.data?.length || editorActive || !!transition} onPress={() => { setEditor('new'); setMessage(''); }} />
         </View>
-        <View style={ui.searchRow}><View style={{ flex: 1 }}><Field label="Search products" placeholder="Try milk, rice, or coffee…" value={searchInput} onChangeText={setSearchInput} maxLength={120} editable={!editor && !transition} onSubmitEditing={() => filter(setSearch, searchInput.trim())} /></View>
-        <Action variant="secondary" title="Search" disabled={!!editor || !!transition} onPress={() => filter(setSearch, searchInput.trim())} /></View>
-        <Choices label="Category filter" values={[{ value: '', label: 'All categories' }, ...(categories.data?.map(c => ({ value: c.id, label: c.name })) ?? [])]} selected={category} disabled={!!editor || !!transition} onSelect={v => filter(setCategory, v)} />
+        <View style={ui.searchRow}><View style={{ flex: 1 }}><Field label="Search products" placeholder="Try milk, rice, or coffee…" value={searchInput} onChangeText={setSearchInput} maxLength={120} editable={!editorActive && !transition} onSubmitEditing={() => filter(setSearch, searchInput.trim())} /></View>
+        <Action variant="secondary" title="Search" disabled={editorActive || !!transition} onPress={() => filter(setSearch, searchInput.trim())} /></View>
+        <Choices label="Category filter" values={[{ value: '', label: 'All categories' }, ...(categories.data?.map(c => ({ value: c.id, label: c.name })) ?? [])]} selected={category} disabled={editorActive || !!transition} onSelect={v => filter(setCategory, v)} />
         <View style={ui.toolbar}>
           <Action variant="secondary" title={moreFilters ? 'Hide filters' : 'More filters'} onPress={() => setMoreFilters(!moreFilters)} />
           <Action variant="secondary" title={inventory.isFetching ? 'Refreshing…' : 'Refresh inventory'} disabled={inventory.isFetching} onPress={() => { inventory.refetch(); categories.refetch(); }} />
-          {!!(searchInput || search || category || status !== 'Active' || sort !== 'expiry') && <Action variant="secondary" title="Clear filters" disabled={!!editor || !!transition} onPress={() => { setSearchInput(''); setSearch(''); setCategory(''); setStatus('Active'); setSort('expiry'); setPage(1); }} />}
+          {!!(searchInput || search || category || status !== 'Active' || sort !== 'expiry') && <Action variant="secondary" title="Clear filters" disabled={editorActive || !!transition} onPress={() => { setSearchInput(''); setSearch(''); setCategory(''); setStatus('Active'); setSort('expiry'); setPage(1); }} />}
         </View>
         {moreFilters && <>
-        <Choices label="Status filter" values={['Active', 'Consumed', 'Discarded', 'All'].map(value => ({ value, label: value }))} selected={status} disabled={!!editor || !!transition} onSelect={v => filter(setStatus, v)} />
-        <Choices label="Sort" values={[{ value: 'expiry', label: 'Nearest date' }, { value: 'name', label: 'Name' }, { value: 'updated', label: 'Recently updated' }]} selected={sort} disabled={!!editor || !!transition} onSelect={v => filter(setSort, v)} />
+        <Choices label="Status filter" values={['Active', 'Consumed', 'Discarded', 'All'].map(value => ({ value, label: value }))} selected={status} disabled={editorActive || !!transition} onSelect={v => filter(setStatus, v)} />
+        <Choices label="Sort" values={[{ value: 'expiry', label: 'Nearest date' }, { value: 'name', label: 'Name' }, { value: 'updated', label: 'Recently updated' }]} selected={sort} disabled={editorActive || !!transition} onSelect={v => filter(setSort, v)} />
         </>}
         {inventory.data && <Text style={styles.body}>{inventory.data.total} {inventory.data.total === 1 ? 'product' : 'products'} · {status === 'All' ? 'All statuses' : status} · {sort === 'expiry' ? 'Nearest date first' : sort === 'name' ? 'Sorted by name' : 'Recently updated'}</Text>}
       </View>}
       {categories.isError && <Text style={styles.error}>Could not load categories: {categories.error.message}</Text>}
       {inventory.isError && <View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{inventory.error.message}{inventory.data ? ' Showing previously loaded items.' : ''}</Text>{focusedId && <Action title="Retry product" disabled={inventory.isFetching} onPress={() => { inventory.refetch(); }} />}</View>}
       {!!message && <Text accessibilityLiveRegion="polite" style={styles.body}>{message}</Text>}
-      {(editor === 'new' || (editingId && !inventory.data?.items.some(item => item.id === editingId))) && editorForm}
+      {(isNewEditor || (editingId && !inventory.data?.items.some(item => item.id === editingId))) && editorForm}
       {inventory.isPending && <ActivityIndicator accessibilityLabel="Loading inventory" />}
       {!inventory.isPending && !inventory.isError && inventory.data?.items.length === 0 && <View style={styles.card}><Text style={styles.heading}>{inventory.data.total === 0 ? 'No matching products yet' : 'No products on this page'}</Text><Text style={styles.body}>Add your first product or change the filters to view household inventory and history.</Text></View>}
       <View style={ui.grid}>{inventory.data?.items.map(item => editingId === item.id ? <View key={item.id} style={{ width: '100%' }}>{editorForm}</View> : <View key={item.id} style={[styles.card, ui.product, { width: width >= 1000 ? '48.5%' : '100%' }]}>

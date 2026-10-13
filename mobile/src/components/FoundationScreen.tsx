@@ -5,7 +5,7 @@ export function FoundationScreen({ title, description, children, compact = false
 }) {
   const { width } = useWindowDimensions();
   return (
-    <ScrollView style={styles.background} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { padding: width < 600 ? 20 : 40 }]}>
+    <ScrollView style={styles.background} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingHorizontal: width < 600 ? 16 : 32, paddingTop: hideHeading ? 8 : 20, paddingBottom: 20 }]}>
       <View style={[styles.content, hideHeading && styles.dense, compact && styles.compact]}>
         {!hideHeading && <View style={styles.heading}>
           <Text style={styles.eyebrow}>SHELFMATE / YOUR HOUSEHOLD</Text>
@@ -21,7 +21,7 @@ const styles = StyleSheet.create({
   background: { backgroundColor: '#f5f7f5' },
   page: { flexGrow: 1, alignItems: 'center' },
   content: { width: '100%', maxWidth: 1120, gap: 24, paddingBottom: 24 },
-  dense: { gap: 14 },
+  dense: { gap: 10 },
   compact: { maxWidth: 560 },
   heading: { gap: 10, paddingVertical: 8 },
   eyebrow: { color: '#48725e', fontSize: 11, fontWeight: '700', letterSpacing: 2 },

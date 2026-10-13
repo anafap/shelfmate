@@ -28,12 +28,13 @@ beforeEach(() => { jest.clearAllMocks(); mockHomeApi(); });
 test('home displays authoritative counts, household context, and estimated dates', async () => {
   const client = await setup();
   await screen.findByText('Use these first');
-  expect(screen.getByText('ShelfMate')).toBeTruthy();
-  expect(screen.getByText('1 member · Manage household')).toBeTruthy();
+  expect(screen.queryByText('ShelfMate')).toBeNull();
+  expect(screen.getByText('1 member · Manage')).toBeTruthy();
   expect(screen.getByText('5')).toBeTruthy(); expect(screen.getByText('1')).toBeTruthy(); expect(screen.getByText('2')).toBeTruthy();
   expect(screen.getByText('List unavailable')).toBeTruthy();
   expect(screen.getByText('Estimated · Expires today')).toBeTruthy();
-  expect(screen.getByText('2 piece  ·  Fruits  ·  Fridge')).toBeTruthy();
+  expect(screen.getByText('2 piece  ·  Fruits')).toBeTruthy();
+  expect(screen.getByText('Fridge  ·  Expiry 2026-10-12')).toBeTruthy();
   expect(api).toHaveBeenCalledWith('/households/current/dashboard'); client.clear();
 });
 

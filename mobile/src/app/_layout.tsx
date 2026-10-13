@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text, View, useWindowDimensions } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const queryClient = new QueryClient();
 export default function RootLayout() {
@@ -22,16 +22,17 @@ export default function RootLayout() {
 function Navigation() {
   const { session, loading, error } = useSession();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const syncStatus = useLiveUpdates(session?.user.id);
   useEffect(() => {
     if (session?.user.id) void syncExistingPushDevice().catch(() => {});
   }, [session?.user.id]);
   if (loading || error || !session) return <AccountScreen />;
-  return <View style={{ flex: 1 }}>{!!syncStatus && <Text accessibilityLiveRegion="polite" style={{ padding: 8, backgroundColor: '#f0f5f1', color: '#22634b', fontSize: 13 }}>{syncStatus}</Text>}<Tabs screenOptions={{
+  return <View style={{ flex: 1 }}>{!!syncStatus && <SafeAreaView edges={['top']} style={{ backgroundColor: '#f0f5f1' }}><Text accessibilityLiveRegion="polite" style={{ paddingHorizontal: 12, paddingVertical: 5, color: '#22634b', fontSize: 12, lineHeight: 18 }}>{syncStatus}</Text></SafeAreaView>}<Tabs screenOptions={{
     tabBarPosition: width >= 1000 ? 'left' : 'bottom',
     tabBarActiveTintColor: '#22634b', tabBarInactiveTintColor: '#596b62',
     tabBarActiveBackgroundColor: '#eaf3ed',
-    tabBarStyle: { backgroundColor: '#fff', borderColor: '#e0e8e2', padding: 8, ...(width >= 1000 ? { width: 210 } : { height: 76 }) },
+    tabBarStyle: { backgroundColor: '#fff', borderColor: '#e0e8e2', padding: 8, ...(width >= 1000 ? { width: 210 } : { height: 76 + insets.bottom, paddingBottom: 8 + insets.bottom }) },
     tabBarItemStyle: { borderRadius: 12, minHeight: 52, marginVertical: 4 },
     tabBarLabelStyle: { fontSize: 13, fontWeight: '600' },
     headerTitle: 'ShelfMate', headerTitleStyle: { color: '#193b2e', fontWeight: '700' },

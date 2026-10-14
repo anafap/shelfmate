@@ -57,7 +57,7 @@ export default function DashboardScreen() {
     {data && <>
       <View style={ui.sectionHeading}>
         <Text accessibilityRole="header" style={ui.sectionTitle}>Use these first</Text>
-        <Link href="/inventory" accessibilityRole="button" style={ui.viewAll}>View all <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={15} /></Link>
+        <Link href="/inventory" asChild><Pressable accessibilityRole="button" style={ui.viewAll}><Text style={ui.viewAllText}>View all</Text><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={15} /></Pressable></Link>
       </View>
       {data.useFirst.length === 0 ? <View style={ui.emptyCard}>
         <Text style={ui.emptyTitle}>{data.activeCount === 0 ? 'Your shelves are ready' : 'Nothing needs prioritizing'}</Text>
@@ -68,7 +68,7 @@ export default function DashboardScreen() {
 
       <View style={ui.sectionHeading}>
         <Text accessibilityRole="header" style={ui.sectionTitle}>Shopping List</Text>
-        <Link href="/shopping" accessibilityRole="button" style={ui.viewAll}>View all <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={15} /></Link>
+        <Link href="/shopping" asChild><Pressable accessibilityRole="button" style={ui.viewAll}><Text style={ui.viewAllText}>View all</Text><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={15} /></Pressable></Link>
       </View>
       <Link href="/shopping" asChild>
         <Pressable accessibilityRole="button" style={ui.shoppingCard}>
@@ -80,6 +80,7 @@ export default function DashboardScreen() {
           <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={17} />
         </Pressable>
       </Link>
+      <View style={ui.scrollEndSpace} />
     </>}
     </FoundationScreen>
     {addMenuOpen && <View style={ui.addOverlay}>
@@ -171,7 +172,8 @@ const ui = StyleSheet.create({
   todayCount: { color: palette.ink, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] },
   sectionHeading: { minHeight: 42, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: -5 },
   sectionTitle: { flex: 1, flexShrink: 1, color: palette.ink, fontSize: 21, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4 },
-  viewAll: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, color: palette.ink, fontSize: 14, paddingHorizontal: 4 },
+  viewAll: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 4 },
+  viewAllText: { color: palette.ink, fontSize: 14 },
   productList: { gap: 7 },
   productListWide: { flexDirection: 'row', flexWrap: 'wrap' },
   productCard: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, minHeight: 78, flexGrow: 1, flexBasis: 300, borderRadius: 15, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
@@ -195,8 +197,8 @@ const ui = StyleSheet.create({
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   addOverlay: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 80 },
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(13, 35, 27, 0.28)' },
-  addMenu: { alignSelf: 'flex-end', width: '100%', maxWidth: 420, padding: 8, gap: 6, borderRadius: 18, backgroundColor: '#fff', shadowColor: '#102a30', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
-  addOption: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, borderRadius: 13, backgroundColor: '#fff' },
+  addMenu: { alignSelf: 'flex-end', width: '100%', maxWidth: 420, padding: 6, gap: 0, borderRadius: 18, backgroundColor: '#fff', shadowColor: '#102a30', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
+  addOption: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, borderRadius: 13, backgroundColor: '#fff' },
   addOptionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#eaf6ed' },
   shoppingOptionIcon: { backgroundColor: '#f3eaff' },
   addOptionCopy: { flex: 1, gap: 2 },
@@ -204,6 +206,7 @@ const ui = StyleSheet.create({
   addOptionHint: { color: palette.muted, fontSize: 12 },
   fab: { position: 'absolute', right: 18, bottom: 14, width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, backgroundColor: '#008b50', borderWidth: 2, borderColor: '#fff', elevation: 7, shadowColor: '#102a30', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
   shoppingCard: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 17, backgroundColor: '#fff' },
+  scrollEndSpace: { height: 78 },
   shoppingIcon: { width: 50, height: 50, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#eaf6ed' },
   shoppingCopy: { flex: 1, gap: 3 },
   shoppingCount: { color: palette.ink, fontSize: 17, fontWeight: '800' },

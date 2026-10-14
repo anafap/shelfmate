@@ -86,7 +86,7 @@ export default function DashboardScreen() {
     {addMenuOpen && <View style={ui.addOverlay}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close add menu" style={ui.scrim} onPress={() => setAddMenuOpen(false)} />
       <View style={ui.addMenu}>
-        <Link href="/inventory?add=1" asChild>
+        <Link href="/add-inventory" asChild>
           <Pressable accessibilityRole="button" style={ui.addOption} onPress={() => setAddMenuOpen(false)}>
             <View style={ui.addOptionIcon}><SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor={palette.green} size={23} /></View>
             <View style={ui.addOptionCopy}><Text style={ui.addOptionTitle}>Add to Inventory</Text><Text style={ui.addOptionHint}>Track a product and its expiry</Text></View>

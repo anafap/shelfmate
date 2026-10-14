@@ -45,6 +45,7 @@ function Navigation() {
   }}>
           <Tabs.Screen name="index" options={{ title: 'Home', headerShown: false, tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'house.fill', android: 'home', web: 'home' }} tintColor={color} size={24} /> }} />
           <Tabs.Screen name="inventory" options={{ title: 'Inventory', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor={color} size={24} /> }} />
+          <Tabs.Screen name="add-inventory" options={{ href: null, title: 'Add to Inventory' }} />
           <Tabs.Screen name="shopping" options={{ title: 'Shopping', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' }} tintColor={color} size={24} /> }} />
           <Tabs.Screen name="alerts" options={{ title: 'Alerts', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} tintColor={color} size={24} /> }} />
           <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />

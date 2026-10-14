@@ -2,13 +2,13 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-n
 import { useContext } from 'react';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
-export function FoundationScreen({ title, description, children, compact = false, hideHeading = false, safeAreaTop = false }: {
-  title: string; description: string; children?: React.ReactNode; compact?: boolean; hideHeading?: boolean; safeAreaTop?: boolean;
+export function FoundationScreen({ title, description, children, compact = false, hideHeading = false, safeAreaTop = false, fill = false, testID }: {
+  title: string; description: string; children?: React.ReactNode; compact?: boolean; hideHeading?: boolean; safeAreaTop?: boolean; fill?: boolean; testID?: string;
 }) {
   const { width } = useWindowDimensions();
   const insets = useContext(SafeAreaInsetsContext);
   return (
-    <ScrollView style={styles.background} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingHorizontal: width < 600 ? 16 : 32, paddingTop: safeAreaTop || hideHeading ? (insets?.top ?? 0) + (hideHeading ? 8 : 20) : 20, paddingBottom: 20 }]}>
+    <ScrollView testID={testID} style={[styles.background, fill && styles.fill]} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingHorizontal: width < 600 ? 16 : 32, paddingTop: safeAreaTop || hideHeading ? (insets?.top ?? 0) + (hideHeading ? 8 : 20) : 20, paddingBottom: 20 }]}>
       <View style={[styles.content, hideHeading && styles.dense, compact && styles.compact]}>
         {!hideHeading && <View style={styles.heading}>
           <Text style={styles.eyebrow}>SHELFMATE / YOUR HOUSEHOLD</Text>
@@ -22,6 +22,7 @@ export function FoundationScreen({ title, description, children, compact = false
 }
 const styles = StyleSheet.create({
   background: { backgroundColor: '#f5f7f5' },
+  fill: { flex: 1 },
   page: { flexGrow: 1, alignItems: 'center' },
   content: { width: '100%', maxWidth: 1120, gap: 24, paddingBottom: 24 },
   dense: { gap: 10 },

@@ -41,6 +41,10 @@ test('Inventory keeps the add form closed and opens the shared dedicated form fr
   const client = await setup();
   expect(await screen.findByText('No matching products yet')).toBeTruthy();
   expect(screen.queryByLabelText('Product name')).toBeNull();
+  const scroll = screen.getByTestId('inventory-scroll');
+  const dock = screen.getByTestId('inventory-fab-dock');
+  expect(dock.parent).toBe(scroll.parent);
+  expect(dock.props.style).toEqual(expect.objectContaining({ height: 72 }));
   await fireEvent.press(screen.getByRole('button', { name: 'Add product' }));
   expect(mockPush).toHaveBeenCalledWith('/add-inventory');
   client.clear();
@@ -152,11 +156,18 @@ test.each(['consume', 'discard'] as const)('%s requires confirmation before movi
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk/${action}`, { version: 'v1' }, 'POST'));
   expect(await screen.findByText('Item moved to history.')).toBeTruthy(); client.clear();
 });
+test('inventory expiry copy uses natural date language', async () => {
+  items = [{ ...milk, expiryDate: '2026-10-13', daysRemaining: 1 }];
+  const client = await setup();
+  expect(await screen.findByText('Expires tomorrow')).toBeTruthy();
+  expect(screen.queryByText(/day\(s\) remaining/)).toBeNull();
+  client.clear();
+});
 test('history keeps purchase date and notes accessible without active actions', async () => {
   items = [{ ...milk, status: 'Consumed', expiryStatus: null, purchaseDate: '2026-10-01', notes: 'Used for dinner' }];
   const client = await setup();
-  await fireEvent.press(screen.getByRole('button', { name: 'Sort' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Status filter: Consumed' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Status: Active' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Status option: Consumed' }));
   await screen.findByRole('button', { name: 'Open Milk' });
   await fireEvent.press(screen.getByRole('button', { name: 'Open Milk' }));
   expect(screen.getByText('Purchased: 2026-10-01')).toBeTruthy();
@@ -167,7 +178,6 @@ test('search and category filters request household-scoped server results', asyn
   const client = await setup();
   await screen.findByText('No matching products yet');
   await fireEvent.changeText(screen.getByLabelText('Search products'), 'Milk');
-  await fireEvent.press(screen.getByRole('button', { name: 'Search' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Category filter: Dairy' }));
   await waitFor(() => expect(jest.mocked(api).mock.calls.some(([path]) => path.includes('search=Milk') && path.includes('category=dairy'))).toBe(true)); client.clear();
 });
@@ -188,14 +198,15 @@ test('network error offers a refresh and does not present fabricated inventory',
 test('history and sorting are available through more filters, and clear restores active inventory', async () => {
   const client = await setup();
   await screen.findByText('No matching products yet');
-  expect(screen.queryByRole('button', { name: 'Status filter: Consumed' })).toBeNull();
-  await fireEvent.press(screen.getByRole('button', { name: 'Sort' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Status filter: Consumed' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Sort: Name' }));
+  expect(screen.queryByRole('button', { name: 'Status option: Consumed' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Status: Active' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Status option: Consumed' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Sort: Nearest expiry' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Sort option: Name (A–Z)' }));
   await waitFor(() => expect(jest.mocked(api).mock.calls.some(([path]) => path.includes('status=Consumed') && path.includes('sort=name'))).toBe(true));
   await fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Status filter: Active' }).props.accessibilityState.selected).toBe(true));
-  expect(screen.getByRole('button', { name: 'Sort: Nearest date' }).props.accessibilityState.selected).toBe(true);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Status: Active' })).toBeTruthy());
+  expect(screen.getByRole('button', { name: 'Sort: Nearest expiry' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
   client.clear();
 });

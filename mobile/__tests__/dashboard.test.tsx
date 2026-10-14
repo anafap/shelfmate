@@ -8,7 +8,7 @@ jest.mock('@/lib/session', () => ({ api: jest.fn() }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
 jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: { id: 'home', name: 'Our home' }, isPending: false, isError: false }) }));
 const item = { id: 'one', householdId: 'home', name: 'Estimated fruit', categoryId: 'fruit', quantity: 2, unit: 'piece', status: 'Active', expiryType: 'Estimated', expiryDate: '2026-10-12', expiryStatus: 'ExpiringSoon', daysRemaining: 0, storageLocation: 'Fridge' } as InventoryItem;
-const data: Dashboard = { householdId: 'home', householdName: 'Our home', householdLocalDate: '2026-10-12', activeCount: 5, expiringSoonCount: 1, expiryTodayOrPastCount: 2, shoppingListCount: null, expiringSoonThreshold: 3, useFirst: [item] };
+const data: Dashboard = { householdId: 'home', householdName: 'Our home', householdLocalDate: '2026-10-12', activeCount: 5, expiringSoonCount: 1, expiryTodayOrPastCount: 2, expiredCount: 1, expiresTodayCount: 1, shoppingListCount: null, expiringSoonThreshold: 3, useFirst: [item] };
 const categories = [{ id: 'fruit', name: 'Fruits', key: 'fruit', isSystemDefined: true }];
 async function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -28,13 +28,15 @@ beforeEach(() => { jest.clearAllMocks(); mockHomeApi(); });
 test('home displays authoritative counts, household context, and estimated dates', async () => {
   const client = await setup();
   await screen.findByText('Use these first');
-  expect(screen.queryByText('ShelfMate')).toBeNull();
+  expect(screen.getByRole('header', { name: 'ShelfMate' })).toBeTruthy();
   expect(screen.getByText('1 member · Manage')).toBeTruthy();
-  expect(screen.getByText('5')).toBeTruthy(); expect(screen.getByText('1')).toBeTruthy(); expect(screen.getByText('2')).toBeTruthy();
+  expect(screen.getByText('5')).toBeTruthy(); expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText('List unavailable')).toBeTruthy();
   expect(screen.getByText('Estimated · Expires today')).toBeTruthy();
-  expect(screen.getByText('2 piece  ·  Fruits')).toBeTruthy();
-  expect(screen.getByText('Fridge  ·  Expiry 2026-10-12')).toBeTruthy();
+  expect(screen.getByText('before today')).toBeTruthy();
+  expect(screen.getByText('Expires today')).toBeTruthy();
+  expect(screen.getByText('2 piece  ·  Fruits  ·  Fridge')).toBeTruthy();
+  expect(screen.getByText('Expiry date: 2026-10-12')).toBeTruthy();
   expect(api).toHaveBeenCalledWith('/households/current/dashboard'); client.clear();
 });
 
@@ -43,7 +45,7 @@ test('home provides direct actions for adding, using, and shopping', async () =>
   await screen.findByText('Use these first');
   expect(screen.getByRole('link', { name: 'Add Item' })).toBeTruthy();
   expect(screen.getByRole('link', { name: /Mark as Used/ })).toBeTruthy();
-  expect(screen.getByRole('link', { name: /Shopping List/ })).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Add to Shopping' })).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Our home, household settings' })).toBeTruthy();
   client.clear();
 });

@@ -6,7 +6,7 @@ import { AccountScreen } from '@/features/auth/AccountScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { Text, View, useWindowDimensions } from 'react-native';
+import { StatusBar, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const queryClient = new QueryClient();
@@ -28,7 +28,11 @@ function Navigation() {
     if (session?.user.id) void syncExistingPushDevice().catch(() => {});
   }, [session?.user.id]);
   if (loading || error || !session) return <AccountScreen />;
-  return <View style={{ flex: 1 }}>{!!syncStatus && <SafeAreaView edges={['top']} style={{ backgroundColor: '#f0f5f1' }}><Text accessibilityLiveRegion="polite" style={{ paddingHorizontal: 12, paddingVertical: 5, color: '#22634b', fontSize: 12, lineHeight: 18 }}>{syncStatus}</Text></SafeAreaView>}<Tabs screenOptions={{
+  const syncNeedsAttention = !!syncStatus && !syncStatus.endsWith('connected');
+  return <View style={{ flex: 1, backgroundColor: '#f5f7f5' }}>
+    <StatusBar barStyle="dark-content" backgroundColor="#f5f7f5" />
+    {syncNeedsAttention && <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff4dc' }}><Text accessibilityLiveRegion="polite" style={{ paddingHorizontal: 12, paddingVertical: 3, color: '#805000', fontSize: 12, lineHeight: 17 }}>{syncStatus}</Text></SafeAreaView>}
+    <Tabs screenOptions={{
     tabBarPosition: width >= 1000 ? 'left' : 'bottom',
     tabBarActiveTintColor: '#22634b', tabBarInactiveTintColor: '#596b62',
     tabBarActiveBackgroundColor: '#eaf3ed',
@@ -39,7 +43,7 @@ function Navigation() {
     headerShadowVisible: false, headerStyle: { backgroundColor: '#fff' },
     headerRight: () => <Link href="/settings" accessibilityLabel="Account & household settings" style={{ padding: 16, color: '#22634b', fontWeight: '600' }}>Settings</Link>,
   }}>
-          <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'house.fill', android: 'home', web: 'home' }} tintColor={color} size={24} /> }} />
+          <Tabs.Screen name="index" options={{ title: 'Home', headerShown: false, tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'house.fill', android: 'home', web: 'home' }} tintColor={color} size={24} /> }} />
           <Tabs.Screen name="inventory" options={{ title: 'Inventory', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor={color} size={24} /> }} />
           <Tabs.Screen name="shopping" options={{ title: 'Shopping', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' }} tintColor={color} size={24} /> }} />
           <Tabs.Screen name="alerts" options={{ title: 'Alerts', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} tintColor={color} size={24} /> }} />

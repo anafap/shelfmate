@@ -39,12 +39,14 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
         {
             Total = g.Count(),
             Soon = g.Count(x => x.ExpiryDate > today && x.ExpiryDate <= soonThrough),
-            Due = g.Count(x => x.ExpiryDate <= today)
+            Due = g.Count(x => x.ExpiryDate <= today),
+            Expired = g.Count(x => x.ExpiryDate < today),
+            Today = g.Count(x => x.ExpiryDate == today)
         }).SingleOrDefaultAsync();
         var items = await active.Where(x => x.ExpiryDate != null).OrderBy(x => x.ExpiryDate).ThenBy(x => x.Name).ThenBy(x => x.Id).Take(10).ToListAsync();
         var shoppingCount = await db.Shopping.CountAsync(x => x.HouseholdId == household.Id && x.Status == "ToBuy");
         await transaction.CommitAsync();
-        return new(household.Id, household.Name, today, counts?.Total ?? 0, counts?.Soon ?? 0, counts?.Due ?? 0, shoppingCount, items.Select(x => View(x, household, now, threshold)).ToList(), threshold);
+        return new(household.Id, household.Name, today, counts?.Total ?? 0, counts?.Soon ?? 0, counts?.Due ?? 0, shoppingCount, items.Select(x => View(x, household, now, threshold)).ToList(), threshold, counts?.Expired ?? 0, counts?.Today ?? 0);
     }
     public async Task<List<CategoryResult>> Categories(Guid userId)
     {

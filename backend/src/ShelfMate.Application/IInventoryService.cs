@@ -10,7 +10,7 @@ public sealed record InventoryResult(Guid Id, Guid HouseholdId, string Name, Gui
     string Status, bool ReminderEnabled, Guid Version, string? ExpiryStatus, int? DaysRemaining, DateOnly HouseholdLocalDate,
     Guid CreatedBy, Guid UpdatedBy, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 public sealed record InventoryPage(List<InventoryResult> Items, int Total, int Page, int PageSize);
-public sealed record DashboardResult(Guid HouseholdId, string HouseholdName, DateOnly HouseholdLocalDate, int ActiveCount, int ExpiringSoonCount, int ExpiryTodayOrPastCount, int? ShoppingListCount, List<InventoryResult> UseFirst, int ExpiringSoonThreshold = 7);
+public sealed record DashboardResult(Guid HouseholdId, string HouseholdName, DateOnly HouseholdLocalDate, int ActiveCount, int ExpiringSoonCount, int ExpiryTodayOrPastCount, int? ShoppingListCount, List<InventoryResult> UseFirst, int ExpiringSoonThreshold = 7, int ExpiredCount = 0, int ExpiresTodayCount = 0);
 public sealed class InventoryError(int status, string message) : Exception(message)
 {
     public int Status { get; } = status;

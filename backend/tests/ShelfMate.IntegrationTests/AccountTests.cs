@@ -350,6 +350,7 @@ public sealed class AccountTests : IAsyncLifetime
         await owner.PostAsJsonAsync($"{InventoryPath}/{discarded.Id}/discard", new TransitionRequest(discarded.Version));
         var dashboard = (await owner.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
         Assert.Equal(6, dashboard.ActiveCount); Assert.Equal(2, dashboard.ExpiringSoonCount); Assert.Equal(2, dashboard.ExpiryTodayOrPastCount);
+        Assert.Equal(1, dashboard.ExpiredCount); Assert.Equal(1, dashboard.ExpiresTodayCount);
         Assert.Equal(0, dashboard.ShoppingListCount);
         Assert.Equal(new[] { yesterday.Id, today.Id, tomorrow.Id, seven.Id, eight.Id }, dashboard.UseFirst.Select(x => x.Id));
         Assert.Equal("Estimated", dashboard.UseFirst[1].ExpiryType);
@@ -386,6 +387,7 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var dashboard = (await client.GetFromJsonAsync<DashboardResult>("/api/v1/households/current/dashboard"))!;
         Assert.Equal(0, dashboard.ExpiringSoonCount); Assert.Equal(1, dashboard.ExpiryTodayOrPastCount);
+        Assert.Equal(0, dashboard.ExpiredCount); Assert.Equal(1, dashboard.ExpiresTodayCount);
         clock.Advance(TimeSpan.FromHours(12));
         var login = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"));
         client.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<SessionResult>())!.AccessToken);
@@ -393,6 +395,7 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(new DateOnly(2026, 10, 13), dashboard.HouseholdLocalDate);
         Assert.Equal(-1, dashboard.UseFirst.Single().DaysRemaining);
         Assert.Equal("Expired", dashboard.UseFirst.Single().ExpiryStatus);
+        Assert.Equal(1, dashboard.ExpiredCount); Assert.Equal(0, dashboard.ExpiresTodayCount);
     }
 
     private const string ShoppingPath = "/api/v1/households/current/shopping-items";

@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import DashboardScreen, { Dashboard, naturalExpiry } from '@/features/dashboard/DashboardScreen';
 import { HouseholdHeader } from '@/features/auth/HouseholdHeader';
 import { api } from '@/lib/session';
 import { InventoryItem } from '@/features/inventory/types';
 import { SyncStatusContext } from '@/features/sync/SyncStatusContext';
+import { BackHandler } from 'react-native';
 
 jest.mock('@/lib/session', () => ({ api: jest.fn() }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
@@ -41,12 +42,34 @@ test('home displays authoritative counts and estimated dates below the shared he
   expect(api).toHaveBeenCalledWith('/households/current/dashboard'); client.clear();
 });
 
-test('home provides direct actions for adding, using, and shopping', async () => {
+test('home add button expands inventory and shopping actions and closes from the outside or X', async () => {
   const client = await setup();
   await screen.findByText('Use these first');
-  expect(screen.getByRole('link', { name: 'Add Item' })).toBeTruthy();
-  expect(screen.getByRole('link', { name: /Mark as Used/ })).toBeTruthy();
-  expect(screen.getByRole('link', { name: 'Add to Shopping' })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Add item' }));
+  expect(screen.getByRole('link', { name: /Add to Inventory/ })).toBeTruthy();
+  expect(screen.getByRole('link', { name: /Add to Shopping List/ })).toBeTruthy();
+  await fireEvent.press(screen.getAllByRole('button', { name: 'Close add menu' })[0]);
+  expect(screen.queryByRole('link', { name: /Add to Inventory/ })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Add item' }));
+  await fireEvent.press(screen.getAllByRole('button', { name: 'Close add menu' })[1]);
+  expect(screen.queryByRole('link', { name: /Add to Shopping List/ })).toBeNull();
+  client.clear();
+});
+
+test('Android Back closes the expanded add menu', async () => {
+  type BackEvent = Parameters<Parameters<typeof BackHandler.addEventListener>[1]>[0];
+  let onBack: ((event: BackEvent) => boolean) | undefined;
+  const addListener = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, listener) => {
+    onBack = event => listener(event) ?? false;
+    return { remove: jest.fn() };
+  });
+  const client = await setup();
+  await screen.findByText('Use these first');
+  await fireEvent.press(screen.getByRole('button', { name: 'Add item' }));
+  expect(screen.getByRole('link', { name: /Add to Inventory/ })).toBeTruthy();
+  await act(async () => { expect(onBack?.({ preventDefault: jest.fn(), type: 'hardwareBackPress', timeStamp: 0 } as unknown as BackEvent)).toBe(true); });
+  expect(screen.queryByRole('link', { name: /Add to Inventory/ })).toBeNull();
+  addListener.mockRestore();
   client.clear();
 });
 

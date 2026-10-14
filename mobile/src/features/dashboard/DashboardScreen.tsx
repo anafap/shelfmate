@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { HouseholdScreen, useHousehold } from '@/features/auth/HouseholdScreen';
-import { Category, InventoryItem, expiryLabel } from '@/features/inventory/types';
+import { Category, InventoryItem, expiryLabel, expiryTone } from '@/features/inventory/types';
 import { api } from '@/lib/session';
 
 export type Dashboard = {
@@ -18,8 +19,14 @@ export type Dashboard = {
 export default function DashboardScreen() {
   const household = useHousehold();
   const { width } = useWindowDimensions();
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const dashboard = useQuery({ queryKey: ['dashboard', household.data?.id], queryFn: () => api<Dashboard>('/households/current/dashboard'), enabled: !!household.data, retry: false });
   const categories = useQuery({ queryKey: ['categories', household.data?.id], queryFn: () => api<Category[]>('/households/current/categories'), enabled: !!household.data, retry: false });
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { setAddMenuOpen(false); return true; });
+    return () => subscription.remove();
+  }, [addMenuOpen]);
 
   if (household.isPending) return <FoundationScreen title="Home" description="Loading your household…"><ActivityIndicator accessibilityLabel="Loading household" /></FoundationScreen>;
   if (household.isError) return <FoundationScreen title="Home" description="Your household could not be loaded."><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></FoundationScreen>;
@@ -27,7 +34,8 @@ export default function DashboardScreen() {
 
   const data = dashboard.data;
   const wide = width >= 720;
-  return <FoundationScreen title="" description="" hideHeading>
+  return <View style={ui.screen}>
+    <FoundationScreen title="" description="" hideHeading>
     <View style={[ui.metrics, wide && ui.metricsWide]}>
       <Metric label="Expired" helper="before today" count={data?.expiredCount} tone="red" />
       <Metric label="Expiring soon" helper={data?.expiringSoonThreshold === undefined ? 'within warning window' : `next ${data.expiringSoonThreshold} days`} count={data?.expiringSoonCount} tone="amber" />
@@ -58,19 +66,6 @@ export default function DashboardScreen() {
         {data.useFirst.slice(0, 3).map(item => <ProductCard key={item.id} item={item} category={categories.data?.find(c => c.id === item.categoryId)?.name} />)}
       </View>}
 
-      <View style={ui.quickActions}>
-        <Link href="/inventory?add=1" asChild>
-          <Pressable accessibilityRole="button" style={ui.addButton}>
-            <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} tintColor="#fff" size={24} />
-            <Text style={ui.addButtonText}>Add Item</Text>
-          </Pressable>
-        </Link>
-        <View style={ui.secondaryActions}>
-          <QuickAction href="/inventory" title="Mark as Used" tone="blue" />
-          <QuickAction href="/shopping" title="Add to Shopping" tone="purple" />
-        </View>
-      </View>
-
       <View style={ui.sectionHeading}>
         <Text accessibilityRole="header" style={ui.sectionTitle}>Shopping List</Text>
         <Link href="/shopping" accessibilityRole="button" style={ui.viewAll}>View all <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={15} /></Link>
@@ -86,7 +81,30 @@ export default function DashboardScreen() {
         </Pressable>
       </Link>
     </>}
-  </FoundationScreen>;
+    </FoundationScreen>
+    {addMenuOpen && <View style={ui.addOverlay}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close add menu" style={ui.scrim} onPress={() => setAddMenuOpen(false)} />
+      <View style={ui.addMenu}>
+        <Link href="/inventory?add=1" asChild>
+          <Pressable accessibilityRole="button" style={ui.addOption} onPress={() => setAddMenuOpen(false)}>
+            <View style={ui.addOptionIcon}><SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor={palette.green} size={23} /></View>
+            <View style={ui.addOptionCopy}><Text style={ui.addOptionTitle}>Add to Inventory</Text><Text style={ui.addOptionHint}>Track a product and its expiry</Text></View>
+            <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={16} />
+          </Pressable>
+        </Link>
+        <Link href="/shopping" asChild>
+          <Pressable accessibilityRole="button" style={ui.addOption} onPress={() => setAddMenuOpen(false)}>
+            <View style={[ui.addOptionIcon, ui.shoppingOptionIcon]}><SymbolView name={{ ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' }} tintColor="#6426a7" size={23} /></View>
+            <View style={ui.addOptionCopy}><Text style={ui.addOptionTitle}>Add to Shopping List</Text><Text style={ui.addOptionHint}>Add something you need to buy</Text></View>
+            <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={16} />
+          </Pressable>
+        </Link>
+      </View>
+    </View>}
+    <Pressable accessibilityRole="button" accessibilityLabel={addMenuOpen ? 'Close add menu' : 'Add item'} accessibilityState={{ expanded: addMenuOpen }} style={ui.fab} onPress={() => setAddMenuOpen(open => !open)}>
+      <SymbolView name={addMenuOpen ? { ios: 'xmark', android: 'close', web: 'close' } : { ios: 'plus', android: 'add', web: 'add' }} tintColor="#fff" size={28} />
+    </Pressable>
+  </View>;
 }
 
 function Metric({ label, helper, count, tone }: { label: string; helper: string; count?: number; tone: 'red' | 'amber' | 'green' }) {
@@ -100,9 +118,9 @@ function Metric({ label, helper, count, tone }: { label: string; helper: string;
 
 function ProductCard({ item, category }: { item: InventoryItem; category?: string }) {
   const label = naturalExpiry(item);
-  const tone = item.expiryStatus === 'Expired' ? 'red' : item.expiryStatus === 'ExpiringSoon' ? 'amber' : item.expiryStatus === 'OK' ? 'green' : 'neutral';
+  const tone = expiryTone(item);
   return <Link href={{ pathname: '/inventory', params: { itemId: item.id } }} asChild>
-    <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}, ${label}, ${item.quantity} ${item.unit}`} style={ui.productCard}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}, ${label}, ${item.quantity} ${item.unit}`} style={StyleSheet.flatten([ui.productCard, tone === 'red' && ui.productCard_red])}>
       <View style={ui.productIcon}><SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor={palette.green} size={28} /></View>
       <View style={ui.productCopy}>
         <View style={ui.productTopline}>
@@ -122,15 +140,6 @@ function ProductCard({ item, category }: { item: InventoryItem; category?: strin
   </Link>;
 }
 
-function QuickAction({ href, title, tone }: { href: '/inventory' | '/shopping'; title: string; tone: 'blue' | 'purple' }) {
-  return <Link href={href} asChild>
-    <Pressable accessibilityRole="button" style={StyleSheet.flatten([ui.quickAction, ui[`quick_${tone}`]])}>
-      <SymbolView name={quickIcons[tone]} tintColor={tone === 'blue' ? '#1875d1' : '#6426a7'} size={26} />
-      <View style={ui.quickCopy}><Text style={[ui.quickTitle, { color: tone === 'blue' ? '#1255a8' : '#53208f' }]}>{title}</Text></View>
-    </Pressable>
-  </Link>;
-}
-
 export function naturalExpiry(item: InventoryItem) {
   if (item.status !== 'Active') return item.status;
   if (item.expiryStatus === 'Unknown' || item.daysRemaining === null) return 'Expiry date unknown';
@@ -143,11 +152,11 @@ export function naturalExpiry(item: InventoryItem) {
 }
 
 const palette = { ink: '#102a30', green: '#16704c', border: '#e8eeeb', muted: '#586c73' };
-const uiColors = { red: '#d82f35', amber: '#ad5c00', green: '#16704c', neutral: '#586c73' };
+const uiColors = { red: '#d82f35', orange: '#c45a00', amber: '#ad5c00', green: '#16704c', neutral: '#586c73' };
 const metricIcons = { red: { ios: 'exclamationmark.circle.fill', android: 'error', web: 'error' }, amber: { ios: 'clock.fill', android: 'schedule', web: 'schedule' }, green: { ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' } } as const;
-const expiryIcons = { red: { ios: 'exclamationmark.circle.fill', android: 'error', web: 'error' }, amber: { ios: 'clock.fill', android: 'schedule', web: 'schedule' }, green: { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }, neutral: { ios: 'questionmark.circle.fill', android: 'help', web: 'help' } } as const;
-const quickIcons = { blue: { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }, purple: { ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' } } as const;
+const expiryIcons = { red: { ios: 'exclamationmark.circle.fill', android: 'error', web: 'error' }, orange: { ios: 'clock.fill', android: 'today', web: 'today' }, amber: { ios: 'clock.fill', android: 'schedule', web: 'schedule' }, green: { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }, neutral: { ios: 'questionmark.circle.fill', android: 'help', web: 'help' } } as const;
 const ui = StyleSheet.create({
+  screen: { flex: 1 },
   metrics: { flexDirection: 'row', gap: 8 },
   metricsWide: { gap: 16 },
   metric: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, paddingVertical: 8, borderRadius: 16, gap: 0 },
@@ -160,19 +169,21 @@ const ui = StyleSheet.create({
   todayLine: { minHeight: 34, marginTop: -5, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8 },
   todayText: { flex: 1, color: palette.ink, fontSize: 14, fontWeight: '700' },
   todayCount: { color: palette.ink, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  sectionHeading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: -3 },
-  sectionTitle: { flexShrink: 1, color: palette.ink, fontSize: 21, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4 },
+  sectionHeading: { minHeight: 42, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: -5 },
+  sectionTitle: { flex: 1, flexShrink: 1, color: palette.ink, fontSize: 21, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4 },
   viewAll: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, color: palette.ink, fontSize: 14, paddingHorizontal: 4 },
   productList: { gap: 7 },
   productListWide: { flexDirection: 'row', flexWrap: 'wrap' },
-  productCard: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 9, minHeight: 88, flexGrow: 1, flexBasis: 300, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  productIcon: { width: 50, height: 50, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#f3f7f4' },
+  productCard: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, minHeight: 78, flexGrow: 1, flexBasis: 300, borderRadius: 15, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  productCard_red: { backgroundColor: '#fff4f2', borderColor: '#f5dfdc' },
+  productIcon: { width: 44, height: 44, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#f3f7f4' },
   productCopy: { flex: 1, minWidth: 0, gap: 1 },
   productTopline: { minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
   productName: { flex: 1, minWidth: 0, color: palette.ink, fontSize: 16, lineHeight: 21, fontWeight: '800' },
   cardChevron: { width: 24, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
   expiryPill: { maxWidth: '58%', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 14 },
-  expiry_red: { backgroundColor: '#fff0ef' },
+  expiry_red: { backgroundColor: '#ffe9e7' },
+  expiry_orange: { backgroundColor: '#fff0e3' },
   expiry_amber: { backgroundColor: '#fff4dc' },
   expiry_green: { backgroundColor: '#edf7ef' },
   expiry_neutral: { backgroundColor: '#eff3f2' },
@@ -182,15 +193,16 @@ const ui = StyleSheet.create({
   emptyCard: { padding: 17, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: palette.border, gap: 5 },
   emptyTitle: { color: palette.ink, fontSize: 17, fontWeight: '700' },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
-  quickActions: { gap: 8, marginTop: -2 },
-  addButton: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 16, backgroundColor: palette.green, elevation: 3 },
-  addButtonText: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  secondaryActions: { flexDirection: 'row', gap: 10 },
-  quickAction: { minHeight: 56, flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 9, borderRadius: 15 },
-  quick_blue: { backgroundColor: '#e8f2ff' },
-  quick_purple: { backgroundColor: '#f3eaff' },
-  quickCopy: { minWidth: 0 },
-  quickTitle: { flexShrink: 1, fontSize: 13, fontWeight: '800' },
+  addOverlay: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 80 },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(13, 35, 27, 0.28)' },
+  addMenu: { alignSelf: 'flex-end', width: '100%', maxWidth: 420, padding: 8, gap: 6, borderRadius: 18, backgroundColor: '#fff', shadowColor: '#102a30', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
+  addOption: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, borderRadius: 13, backgroundColor: '#fff' },
+  addOptionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#eaf6ed' },
+  shoppingOptionIcon: { backgroundColor: '#f3eaff' },
+  addOptionCopy: { flex: 1, gap: 2 },
+  addOptionTitle: { color: palette.ink, fontSize: 15, fontWeight: '800' },
+  addOptionHint: { color: palette.muted, fontSize: 12 },
+  fab: { position: 'absolute', right: 18, bottom: 14, width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, backgroundColor: '#008b50', borderWidth: 2, borderColor: '#fff', elevation: 7, shadowColor: '#102a30', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
   shoppingCard: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 17, backgroundColor: '#fff' },
   shoppingIcon: { width: 50, height: 50, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#eaf6ed' },
   shoppingCopy: { flex: 1, gap: 3 },

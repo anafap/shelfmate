@@ -7,7 +7,7 @@ import { Action, Field, styles } from '@/features/auth/AccountScreen';
 import { useHousehold } from '@/features/auth/HouseholdScreen';
 import { api, ApiError } from '@/lib/session';
 import { Choices, InventoryForm } from './InventoryForm';
-import { Category, InventoryItem, InventoryPage, expiryLabel, inventoryPath } from './types';
+import { Category, InventoryItem, InventoryPage, expiryLabel, expiryTone, inventoryPath } from './types';
 
 export default function InventoryScreen() {
   const household = useHousehold(); const client = useQueryClient();
@@ -71,9 +71,9 @@ export default function InventoryScreen() {
       {(isNewEditor || (editingId && !inventory.data?.items.some(item => item.id === editingId))) && editorForm}
       {inventory.isPending && <ActivityIndicator accessibilityLabel="Loading inventory" />}
       {!inventory.isPending && !inventory.isError && inventory.data?.items.length === 0 && <View style={styles.card}><Text style={styles.heading}>{inventory.data.total === 0 ? 'No matching products yet' : 'No products on this page'}</Text><Text style={styles.body}>Add your first product or change the filters to view household inventory and history.</Text></View>}
-      <View style={ui.grid}>{inventory.data?.items.map(item => editingId === item.id ? <View key={item.id} style={{ width: '100%' }}>{editorForm}</View> : <View key={item.id} style={[styles.card, ui.product, { width: width >= 1000 ? '48.5%' : '100%' }]}>
+      <View style={ui.grid}>{inventory.data?.items.map(item => editingId === item.id ? <View key={item.id} style={{ width: '100%' }}>{editorForm}</View> : <View key={item.id} style={[styles.card, ui.product, item.status === 'Active' && expiryTone(item) === 'red' && ui.expiredProduct, { width: width >= 1000 ? '48.5%' : '100%' }]}>
         <View style={ui.toolbar}><View style={{ flex: 1, gap: 4 }}><Text accessibilityRole="header" style={styles.heading}>{item.name}</Text><Text style={styles.body}>{categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'} · {item.storageLocation}</Text></View><Text style={ui.quantity}>{item.quantity} {item.unit}</Text></View>
-        <View style={ui.dateRow}><Text style={[ui.badge, item.status === 'Active' && item.expiryStatus === 'Expired' ? ui.expired : item.status === 'Active' && item.expiryStatus === 'ExpiringSoon' ? ui.soon : null]}>{expiryLabel(item)}</Text>{item.expiryDate && <Text style={ui.dateText}>{item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} · {item.expiryDate}</Text>}</View>
+        <View style={ui.dateRow}><Text style={[ui.badge, ui[`badge_${expiryTone(item)}`]]}>{expiryLabel(item)}</Text>{item.expiryDate && <Text style={ui.dateText}>{item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} · {item.expiryDate}</Text>}</View>
         <Pressable accessibilityRole="button" accessibilityLabel={`Options for ${item.name}`} accessibilityState={{ expanded: openItemId === item.id }} style={ui.options} onPress={() => setOpenItemId(openItemId === item.id ? null : item.id)}><Text style={ui.optionsText}>{openItemId === item.id ? 'Hide options' : 'Options'}</Text></Pressable>
         {openItemId === item.id && <View style={ui.details}>
           {item.expiryType === 'Estimated' && <Text style={styles.body}>Estimated dates are editable guides, not verified safety deadlines.</Text>}
@@ -108,10 +108,14 @@ const ui = StyleSheet.create({
   searchRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-end' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' },
   quantity: { color: '#52665a', backgroundColor: '#f0f5f1', padding: 10, borderRadius: 10, fontWeight: '600', fontSize: 15 },
-  badge: { alignSelf: 'flex-start', color: '#22634b', backgroundColor: '#edf5ef', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, fontSize: 14, fontWeight: '600' },
-  expired: { color: '#9c2727', backgroundColor: '#fff0ed' },
-  soon: { color: '#85520c', backgroundColor: '#fff4dc' },
-  product: { gap: 12 },
+  badge: { alignSelf: 'flex-start', color: '#22634b', backgroundColor: '#edf5ef', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, fontSize: 14, fontWeight: '600' },
+  badge_red: { color: '#9c2727', backgroundColor: '#ffe9e7' },
+  badge_orange: { color: '#a94d00', backgroundColor: '#fff0e3' },
+  badge_amber: { color: '#85520c', backgroundColor: '#fff4dc' },
+  badge_green: { color: '#22634b', backgroundColor: '#eaf6ed' },
+  badge_neutral: { color: '#52665a', backgroundColor: '#f0f5f1' },
+  expiredProduct: { backgroundColor: '#fff7f5', borderColor: '#f2deda' },
+  product: { gap: 10, padding: 14 },
   dateRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   dateText: { color: '#52665a', fontSize: 14 },
   options: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center' },

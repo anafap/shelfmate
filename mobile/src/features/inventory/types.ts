@@ -9,6 +9,15 @@ export type InventoryItem = {
 };
 export type InventoryPage = { items: InventoryItem[]; total: number; page: number; pageSize: number };
 export const inventoryPath = '/households/current/inventory';
+export type ExpiryTone = 'red' | 'orange' | 'amber' | 'green' | 'neutral';
+export function expiryTone(item: InventoryItem): ExpiryTone {
+  if (item.status !== 'Active') return 'neutral';
+  if (item.expiryStatus === 'Expired') return 'red';
+  if (item.daysRemaining === 0) return 'orange';
+  if (item.expiryStatus === 'ExpiringSoon') return 'amber';
+  if (item.expiryStatus === 'OK') return 'green';
+  return 'neutral';
+}
 export function expiryLabel(item: InventoryItem) {
   if (item.status !== 'Active') return item.status;
   if (item.expiryStatus === 'Unknown') return 'Expiry unknown';

@@ -1,11 +1,14 @@
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useContext } from 'react';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
-export function FoundationScreen({ title, description, children, compact = false, hideHeading = false }: {
-  title: string; description: string; children?: React.ReactNode; compact?: boolean; hideHeading?: boolean;
+export function FoundationScreen({ title, description, children, compact = false, hideHeading = false, safeAreaTop = false }: {
+  title: string; description: string; children?: React.ReactNode; compact?: boolean; hideHeading?: boolean; safeAreaTop?: boolean;
 }) {
   const { width } = useWindowDimensions();
+  const insets = useContext(SafeAreaInsetsContext);
   return (
-    <ScrollView style={styles.background} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingHorizontal: width < 600 ? 16 : 32, paddingTop: hideHeading ? 8 : 20, paddingBottom: 20 }]}>
+    <ScrollView style={styles.background} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingHorizontal: width < 600 ? 16 : 32, paddingTop: safeAreaTop || hideHeading ? (insets?.top ?? 0) + (hideHeading ? 8 : 20) : 20, paddingBottom: 20 }]}>
       <View style={[styles.content, hideHeading && styles.dense, compact && styles.compact]}>
         {!hideHeading && <View style={styles.heading}>
           <Text style={styles.eyebrow}>SHELFMATE / YOUR HOUSEHOLD</Text>

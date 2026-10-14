@@ -18,7 +18,7 @@ export function useHousehold() {
     catch (e) { if (e instanceof ApiError && e.status === 404) return null; throw e; }
   }, retry: false, enabled: !!session });
 }
-export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
+export function HouseholdScreen({ settings = false, safeAreaTop = false }: { settings?: boolean; safeAreaTop?: boolean }) {
   const { session } = useSession();
   const household = useHousehold(); const queryClient = useQueryClient();
   const [name, setName] = useState('');
@@ -37,7 +37,7 @@ export function HouseholdScreen({ settings = false }: { settings?: boolean }) {
     await queryClient.invalidateQueries({ queryKey: ['invites'] });
   }});
   function run(task: () => Promise<unknown>) { setMessage(''); action.mutate(task); }
-  return <FoundationScreen title={settings ? 'Account & household' : household.data?.name ?? 'Set up your household'} description={settings ? `Manage your account and the people in your home. Signed in as ${session?.user.displayName ?? ''}.` : household.data ? `Welcome back, ${session?.user.displayName ?? 'housemate'}. Let’s see what’s at home.` : 'Start a home together, or join one with your partner’s invitation code.'}>
+  return <FoundationScreen title={settings ? 'Account & household' : household.data?.name ?? 'Set up your household'} description={settings ? `Manage your account and the people in your home. Signed in as ${session?.user.displayName ?? ''}.` : household.data ? `Welcome back, ${session?.user.displayName ?? 'housemate'}. Let’s see what’s at home.` : 'Start a home together, or join one with your partner’s invitation code.'} safeAreaTop={safeAreaTop}>
     <View style={styles.card}>
       {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry" onPress={() => { household.refetch(); }} /></> : !household.data ? <>
         <Text style={styles.heading}>Create a household</Text>

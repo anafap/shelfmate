@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import DashboardScreen, { Dashboard, naturalExpiry } from '@/features/dashboard/DashboardScreen';
 import { api } from '@/lib/session';
 import { InventoryItem } from '@/features/inventory/types';
+import { SyncStatusContext } from '@/features/sync/SyncStatusContext';
 
 jest.mock('@/lib/session', () => ({ api: jest.fn() }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
@@ -10,9 +11,9 @@ jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ dat
 const item = { id: 'one', householdId: 'home', name: 'Estimated fruit', categoryId: 'fruit', quantity: 2, unit: 'piece', status: 'Active', expiryType: 'Estimated', expiryDate: '2026-10-12', expiryStatus: 'ExpiringSoon', daysRemaining: 0, storageLocation: 'Fridge' } as InventoryItem;
 const data: Dashboard = { householdId: 'home', householdName: 'Our home', householdLocalDate: '2026-10-12', activeCount: 5, expiringSoonCount: 1, expiryTodayOrPastCount: 2, expiredCount: 1, expiresTodayCount: 1, shoppingListCount: null, expiringSoonThreshold: 3, useFirst: [item] };
 const categories = [{ id: 'fruit', name: 'Fruits', key: 'fruit', isSystemDefined: true }];
-async function setup() {
+async function setup(syncStatus = 'Connecting shared updates…') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
-  await render(<QueryClientProvider client={client}><DashboardScreen /></QueryClientProvider>);
+  await render(<QueryClientProvider client={client}><SyncStatusContext.Provider value={syncStatus}><DashboardScreen /></SyncStatusContext.Provider></QueryClientProvider>);
   return client;
 }
 function mockHomeApi(value: Dashboard = data) {
@@ -35,9 +36,20 @@ test('home displays authoritative counts, household context, and estimated dates
   expect(screen.getByText('Estimated · Expires today')).toBeTruthy();
   expect(screen.getByText('before today')).toBeTruthy();
   expect(screen.getByText('Expires today')).toBeTruthy();
+  expect(screen.getByText('Syncing')).toBeTruthy();
   expect(screen.getByText('2 piece  ·  Fruits  ·  Fridge')).toBeTruthy();
   expect(screen.getByText('Expiry date: 2026-10-12')).toBeTruthy();
   expect(api).toHaveBeenCalledWith('/households/current/dashboard'); client.clear();
+});
+
+test.each([
+  ['Shared updates connected', 'Live'],
+  ['Shared updates disconnected · refresh is available', 'Offline'],
+])('shows compact sync state for %s', async (status, label) => {
+  const client = await setup(status);
+  expect(await screen.findByText(label)).toBeTruthy();
+  expect(screen.getByLabelText(status)).toBeTruthy();
+  client.clear();
 });
 
 test('home provides direct actions for adding, using, and shopping', async () => {

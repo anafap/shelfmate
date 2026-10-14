@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useContext } from 'react';
 import { Link } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -6,6 +7,7 @@ import { FoundationScreen } from '@/components/FoundationScreen';
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { HouseholdScreen, useHousehold } from '@/features/auth/HouseholdScreen';
 import { Category, InventoryItem, expiryLabel } from '@/features/inventory/types';
+import { SyncStatusContext } from '@/features/sync/SyncStatusContext';
 import { api } from '@/lib/session';
 
 export type Dashboard = {
@@ -18,13 +20,14 @@ export type Dashboard = {
 export default function DashboardScreen() {
   const household = useHousehold();
   const { width } = useWindowDimensions();
+  const syncStatus = useContext(SyncStatusContext);
   const dashboard = useQuery({ queryKey: ['dashboard', household.data?.id], queryFn: () => api<Dashboard>('/households/current/dashboard'), enabled: !!household.data, retry: false });
   const members = useQuery({ queryKey: ['members', household.data?.id], queryFn: () => api<{ userId: string }[]>('/households/current/members'), enabled: !!household.data, retry: false });
   const categories = useQuery({ queryKey: ['categories', household.data?.id], queryFn: () => api<Category[]>('/households/current/categories'), enabled: !!household.data, retry: false });
 
-  if (household.isPending) return <FoundationScreen title="Home" description="Loading your household…"><ActivityIndicator accessibilityLabel="Loading household" /></FoundationScreen>;
-  if (household.isError) return <FoundationScreen title="Home" description="Your household could not be loaded."><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></FoundationScreen>;
-  if (!household.data) return <HouseholdScreen />;
+  if (household.isPending) return <FoundationScreen title="Home" description="Loading your household…" safeAreaTop><ActivityIndicator accessibilityLabel="Loading household" /></FoundationScreen>;
+  if (household.isError) return <FoundationScreen title="Home" description="Your household could not be loaded." safeAreaTop><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></FoundationScreen>;
+  if (!household.data) return <HouseholdScreen safeAreaTop />;
 
   const data = dashboard.data;
   const wide = width >= 720;
@@ -52,6 +55,10 @@ export default function DashboardScreen() {
             <Text style={ui.memberText}>{members.data ? `${members.data.length} ${members.data.length === 1 ? 'member' : 'members'}` : 'Shared household'} · Manage</Text>
           </Pressable>
         </Link>
+        <View accessibilityRole="text" accessibilityLabel={syncStatus} accessibilityLiveRegion="polite" style={ui.syncStatus}>
+          <View style={[ui.syncDot, syncStatus.includes('disconnected') && ui.syncDotDisconnected]} />
+          <Text style={[ui.syncText, syncStatus.includes('disconnected') && ui.syncTextDisconnected]}>{syncStatus.includes('disconnected') ? 'Offline' : syncStatus.endsWith('connected') ? 'Live' : 'Syncing'}</Text>
+        </View>
         <Pressable accessibilityRole="button" accessibilityLabel={dashboard.isFetching ? 'Refreshing home' : 'Refresh home'} accessibilityState={{ disabled: dashboard.isFetching }} disabled={dashboard.isFetching} onPress={() => { dashboard.refetch(); }} style={ui.refreshButton}>
           <SymbolView name={{ ios: 'arrow.clockwise', android: 'refresh', web: 'refresh' }} tintColor={palette.green} size={18} />
         </Pressable>
@@ -185,9 +192,14 @@ const ui = StyleSheet.create({
   householdChip: { alignSelf: 'flex-start', minHeight: 42, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 22, backgroundColor: '#fff' },
   householdName: { flexShrink: 1, fontSize: 16, fontWeight: '700', color: palette.ink },
   memberLine: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  memberLink: { minHeight: 40, flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  memberLink: { minHeight: 40, flexShrink: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
   refreshButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   memberText: { flexShrink: 1, color: palette.muted, fontSize: 14 },
+  syncStatus: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  syncDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#28865c' },
+  syncDotDisconnected: { backgroundColor: '#ad5c00' },
+  syncText: { color: '#22634b', fontSize: 12, fontWeight: '700' },
+  syncTextDisconnected: { color: '#805000' },
   metrics: { flexDirection: 'row', gap: 8 },
   metricsWide: { gap: 16 },
   metric: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, paddingVertical: 8, borderRadius: 16, gap: 0 },

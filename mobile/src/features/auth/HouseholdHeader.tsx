@@ -54,8 +54,8 @@ const palette = { ink: '#102a30', green: '#16704c', border: '#e8eeeb', muted: '#
 const ui = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 3, paddingBottom: 5, gap: 0, backgroundColor: '#f5f7f5' },
   brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brand: { color: palette.green, fontSize: 25, lineHeight: 31, fontWeight: '800', letterSpacing: -0.8 },
-  settingsButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#edf2ef' },
+  brand: { flexShrink: 1, marginRight: 12, color: palette.green, fontSize: 25, lineHeight: 31, fontWeight: '800', letterSpacing: -0.8 },
+  settingsButton: { flexShrink: 0, width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#edf2ef' },
   detailsRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
   householdChip: { minHeight: 40, flex: 1, minWidth: 70, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 20, backgroundColor: '#fff' },
   householdName: { flex: 1, minWidth: 0, color: palette.ink, fontSize: 14, fontWeight: '700' },

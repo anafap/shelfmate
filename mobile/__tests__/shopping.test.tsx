@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Alert, StyleSheet } from 'react-native';
+import { FAB_SCROLL_END_PADDING } from '@/components/FloatingActionButton';
 import ShoppingScreen, { ShoppingItem } from '@/features/shopping/ShoppingScreen';
 import { inventoryPath } from '@/features/inventory/types';
 import { api } from '@/lib/session';
@@ -20,13 +21,29 @@ async function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
   await render(<QueryClientProvider client={client}><ShoppingScreen /></QueryClientProvider>); return client;
 }
-test('compact quick add trims input, submits from keyboard, and confirms success', async () => {
+test('shared FAB opens add, trims keyboard submission, and closes the form', async () => {
   const client = await setup(); expect(await screen.findByText('Your list is clear')).toBeTruthy();
-  const input = screen.getByLabelText('Quick add shopping item');
+  expect(screen.queryByLabelText('Item name')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Add shopping item' }));
+  const input = screen.getByLabelText('Item name');
   await fireEvent.changeText(input, '  Milk  ');
   await fireEvent(input, 'submitEditing');
   await waitFor(() => expect(api).toHaveBeenCalledWith(path, { name: 'Milk' }, 'POST'));
   expect(await screen.findByText('Milk added to shopping.')).toBeTruthy(); client.clear();
+});
+test('add feedback expires and list content can scroll clear of the FAB', async () => {
+  const client = await setup(); await screen.findByText('Your list is clear');
+  expect(StyleSheet.flatten(screen.getByTestId('shopping-scroll').props.contentContainerStyle).paddingBottom).toBeGreaterThanOrEqual(FAB_SCROLL_END_PADDING);
+  jest.useFakeTimers();
+  try {
+    await fireEvent.press(screen.getByRole('button', { name: 'Add shopping item' }));
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Bread');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add to shopping' }));
+    await waitFor(() => expect(screen.getByText('Bread added to shopping.')).toBeTruthy());
+    expect(screen.queryByLabelText('Item name')).toBeNull();
+    await act(async () => { jest.advanceTimersByTime(4000); });
+    expect(screen.queryByText('Bread added to shopping.')).toBeNull();
+  } finally { client.clear(); jest.useRealTimers(); }
 });
 test('purchase is separate from inventory transfer, which asks for quantity and expiry', async () => {
   items = [base];
@@ -43,7 +60,7 @@ test('purchase is separate from inventory transfer, which asks for quantity and 
   await screen.findByText('Milk marked purchased. Add it to inventory when you’re ready.');
   expect(jest.mocked(api).mock.calls.some(([url]) => url.endsWith('/transfer-to-inventory'))).toBe(false);
   if (screen.queryByRole('button', { name: 'Show purchased items' })) await fireEvent.press(screen.getByRole('button', { name: 'Show purchased items' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'View Milk details' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Show Milk purchase details' }));
   expect((await screen.findAllByText('Purchased by')).length).toBeGreaterThan(0); expect(screen.getAllByText(/Oct 12, 2026/).length).toBeGreaterThan(0);
   await fireEvent.press(screen.getByRole('button', { name: 'Add to inventory' }));
   await fireEvent.changeText(screen.getByLabelText('Quantity'), '2');
@@ -53,15 +70,15 @@ test('purchase is separate from inventory transfer, which asks for quantity and 
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${path}/milk/transfer-to-inventory`, expect.objectContaining({ version: 'v2', confirmSeparateItem: false, item: expect.objectContaining({ quantity: 2, expiryDate: '2026-10-20', expiryType: 'Printed' }) }), 'POST'));
   expect(await screen.findByText('Purchase transferred to inventory.')).toBeTruthy(); client.clear();
 });
-test('checkbox can unpurchase an item while detail tap opens an intentional details sheet', async () => {
+test('checkbox can unpurchase an item while item tap expands purchase details', async () => {
   items = [{ ...base, status: 'Purchased', version: 'v2', purchasedByName: 'Ana', purchasedAt: '2026-10-12T12:00:00Z' }];
   const client = await setup(); await screen.findByRole('button', { name: 'Show purchased items' });
   expect(screen.queryByRole('checkbox', { name: 'Uncheck Milk' })).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'Show purchased items' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'View Milk details' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Show Milk purchase details' }));
   expect((await screen.findAllByText('Purchased by')).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/Oct 12, 2026/).length).toBeGreaterThan(0);
-  await fireEvent.press(screen.getByRole('button', { name: 'Close item details' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Hide Milk purchase details' }));
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Uncheck Milk' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${path}/milk/purchase`, { version: 'v2', operationId: 'v2', purchased: false }, 'POST')); client.clear();
 });
@@ -71,8 +88,10 @@ test('purchased history stays collapsed and expands into a coherent purchase sum
   expect(screen.queryByText('Bread')).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'Show purchased items' }));
   expect(screen.getByText('Bread')).toBeTruthy();
+  expect(screen.queryByText('Purchased by')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Show Bread purchase details' }));
   expect(screen.getByText('Purchased by')).toBeTruthy(); expect(screen.getByText('Ana')).toBeTruthy();
-  expect(screen.getByText('Not in inventory')).toBeTruthy(); client.clear();
+  expect(screen.getByText(/Not in Inventory/)).toBeTruthy(); client.clear();
 });
 test('overflow menu holds edit and confirmed history removal', async () => {
   items = [base];

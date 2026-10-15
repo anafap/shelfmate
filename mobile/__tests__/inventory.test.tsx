@@ -42,9 +42,10 @@ test('Inventory keeps the add form closed and opens the shared dedicated form fr
   expect(await screen.findByText('No matching products yet')).toBeTruthy();
   expect(screen.queryByLabelText('Product name')).toBeNull();
   const scroll = screen.getByTestId('inventory-scroll');
-  const dock = screen.getByTestId('inventory-fab-dock');
-  expect(dock.parent).toBe(scroll.parent);
-  expect(dock.props.style).toEqual(expect.objectContaining({ height: 72 }));
+  const fabOverlay = screen.getByTestId('inventory-fab-overlay');
+  expect(fabOverlay.parent).toBe(scroll.parent);
+  expect(fabOverlay.props.style).toEqual(expect.objectContaining({ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }));
+  expect(scroll.props.contentContainerStyle[1]).toEqual(expect.objectContaining({ paddingTop: 8, paddingBottom: 64 }));
   await fireEvent.press(screen.getByRole('button', { name: 'Add product' }));
   expect(mockPush).toHaveBeenCalledWith('/add-inventory');
   client.clear();
@@ -204,6 +205,7 @@ test('history and sorting are available through more filters, and clear restores
   await fireEvent.press(screen.getByRole('button', { name: 'Sort: Nearest expiry' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Sort option: Name (A–Z)' }));
   await waitFor(() => expect(jest.mocked(api).mock.calls.some(([path]) => path.includes('status=Consumed') && path.includes('sort=name'))).toBe(true));
+  expect(screen.getByRole('button', { name: 'Clear filters' }).props.style).toEqual(expect.objectContaining({ minHeight: 24 }));
   await fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Status: Active' })).toBeTruthy());
   expect(screen.getByRole('button', { name: 'Sort: Nearest expiry' })).toBeTruthy();

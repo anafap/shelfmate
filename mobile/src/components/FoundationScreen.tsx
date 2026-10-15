@@ -2,13 +2,13 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-n
 import { useContext } from 'react';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
-export function FoundationScreen({ title, description, children, compact = false, hideHeading = false, safeAreaTop = false, fill = false, testID }: {
-  title: string; description: string; children?: React.ReactNode; compact?: boolean; hideHeading?: boolean; safeAreaTop?: boolean; fill?: boolean; testID?: string;
+export function FoundationScreen({ title, description, children, compact = false, hideHeading = false, safeAreaTop = false, fill = false, testID, topPadding, bottomPadding }: {
+  title: string; description: string; children?: React.ReactNode; compact?: boolean; hideHeading?: boolean; safeAreaTop?: boolean; fill?: boolean; testID?: string; topPadding?: number; bottomPadding?: number;
 }) {
   const { width } = useWindowDimensions();
   const insets = useContext(SafeAreaInsetsContext);
   return (
-    <ScrollView testID={testID} style={[styles.background, fill && styles.fill]} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingHorizontal: width < 600 ? 16 : 32, paddingTop: safeAreaTop || hideHeading ? (insets?.top ?? 0) + (hideHeading ? 8 : 20) : 20, paddingBottom: 20 }]}>
+    <ScrollView testID={testID} style={[styles.background, fill && styles.fill]} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingHorizontal: width < 600 ? 16 : 32, paddingTop: topPadding ?? (safeAreaTop || hideHeading ? (insets?.top ?? 0) + (hideHeading ? 8 : 20) : 20), paddingBottom: bottomPadding ?? 20 }]}>
       <View style={[styles.content, hideHeading && styles.dense, compact && styles.compact]}>
         {!hideHeading && <View style={styles.heading}>
           <Text style={styles.eyebrow}>SHELFMATE / YOUR HOUSEHOLD</Text>

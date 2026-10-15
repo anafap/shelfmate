@@ -45,7 +45,7 @@ test('Inventory keeps the add form closed and opens the shared dedicated form fr
   const fabOverlay = screen.getByTestId('inventory-fab-overlay');
   expect(fabOverlay.parent).toBe(scroll.parent);
   expect(fabOverlay.props.style).toEqual(expect.objectContaining({ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }));
-  expect(scroll.props.contentContainerStyle[1]).toEqual(expect.objectContaining({ paddingTop: 8, paddingBottom: 64 }));
+  expect(scroll.props.contentContainerStyle[1]).toEqual(expect.objectContaining({ paddingTop: 8, paddingBottom: 72 }));
   await fireEvent.press(screen.getByRole('button', { name: 'Add product' }));
   expect(mockPush).toHaveBeenCalledWith('/add-inventory');
   client.clear();
@@ -162,6 +162,33 @@ test('inventory expiry copy uses natural date language', async () => {
   const client = await setup();
   expect(await screen.findByText('Expires tomorrow')).toBeTruthy();
   expect(screen.queryByText(/day\(s\) remaining/)).toBeNull();
+  client.clear();
+});
+test.each([
+  [-1, 'Expired yesterday'],
+  [-2, 'Expired 2 days ago'],
+  [0, 'Expires today'],
+  [1, 'Expires tomorrow'],
+  [4, 'Expires in 4 days'],
+] as const)('expiry at %i days uses natural language', async (daysRemaining, label) => {
+  items = [{ ...milk, daysRemaining, expiryStatus: daysRemaining < 0 ? 'Expired' : daysRemaining === 0 ? 'ExpiringSoon' : 'ExpiringSoon' }];
+  const client = await setup();
+  expect(await screen.findByText(label)).toBeTruthy();
+  client.clear();
+});
+test.each([
+  [1, 'piece', '1 piece'],
+  [2, 'piece', '2 pieces'],
+  [1, 'bottle', '1 bottle'],
+  [2, 'box', '2 boxes'],
+  [1, 'kg', '1 kg'],
+] as const)('Inventory formats quantity %s %s as %s in the card and details', async (quantity, unit, label) => {
+  items = [{ ...milk, quantity, unit }];
+  const client = await setup();
+  await screen.findByRole('button', { name: 'Open Milk' });
+  expect(screen.getByText(label)).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Open Milk' }));
+  expect(screen.getByText(`Quantity · ${label}`)).toBeTruthy();
   client.clear();
 });
 test('history keeps purchase date and notes accessible without active actions', async () => {

@@ -45,7 +45,7 @@ export default function InventoryScreen() {
   function filter(setter: (value: string) => void, value: string) { setter(value); setPage(1); }
   const conflict = lifecycle.error instanceof ApiError && lifecycle.error.status === 409;
   return <View style={ui.screen}>
-    <FoundationScreen title="Inventory" description="Find what you have and review what’s coming up." hideHeading={!focusedId} fill testID="inventory-scroll" topPadding={!focusedId ? 8 : undefined} bottomPadding={focusedId ? undefined : 64}>
+    <FoundationScreen title="Inventory" description="Find what you have and review what’s coming up." hideHeading={!focusedId} fill testID="inventory-scroll" topPadding={!focusedId ? 8 : undefined} bottomPadding={focusedId ? undefined : 72}>
       {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={styles.card}><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></View> : !household.data ? <View style={styles.card}><Text style={styles.body}>Create or join a household before adding inventory.</Text><Link href="/" style={{ minHeight: 48, padding: 12, color: '#22634b', fontSize: 16 }}>Go to household setup</Link></View> : <>
         {focusedId ? <Link href="/inventory" accessibilityRole="button" style={ui.backLink}>← All products</Link> : <View style={ui.listHeader}>
           <View style={ui.titleRow}><Text accessibilityRole="header" style={ui.title}>Inventory</Text>{inventory.data && <Text style={ui.count}>{inventory.data.total} {inventory.data.total === 1 ? 'product' : 'products'}</Text>}</View>
@@ -65,13 +65,13 @@ export default function InventoryScreen() {
         <View style={ui.grid}>{inventory.data?.items.map(item => <View key={item.id} style={[ui.product, item.status === 'Active' && expiryTone(item) === 'red' && ui.expiredProduct, { width: width >= 1000 ? '48.5%' : '100%' }]}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} accessibilityState={{ expanded: openItemId === item.id }} onPress={() => setOpenItemId(openItemId === item.id ? null : item.id)} style={ui.productHeader}>
           <View style={ui.productIcon}><SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor="#008b50" size={22} /></View>
-          <View style={ui.productCopy}><View style={ui.productTop}><Text numberOfLines={1} accessibilityRole="header" style={ui.productName}>{item.name}</Text><Text style={ui.quantity}>{item.quantity} {item.unit}</Text></View><Text numberOfLines={1} style={ui.meta}>{categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'} · {item.storageLocation || 'Location not set'}</Text>
+          <View style={ui.productCopy}><View style={ui.productTop}><Text numberOfLines={1} accessibilityRole="header" style={ui.productName}>{item.name}</Text><Text style={ui.quantity}>{formatQuantityUnit(item.quantity, item.unit)}</Text></View><Text numberOfLines={1} style={ui.meta}>{categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'} · {item.storageLocation || 'Location not set'}</Text>
             <View style={ui.dateRow}><Text style={[ui.badge, ui[`badge_${expiryTone(item)}`]]}>{inventoryExpiryLabel(item)}</Text>{item.expiryDate && <Text style={ui.dateText}>{item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} · {item.expiryDate}</Text>}</View>
           </View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor="#7a8981" size={17} />
           </Pressable>
           {openItemId === item.id && <View style={ui.details}>
             {editor?.id === item.id ? <InventoryForm key={item.version} item={item} categories={categories.data ?? []} onCancel={() => setEditor(null)} onReload={latest => { setEditor(latest); client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} onSaved={async () => { setEditor(null); setMessage('Product saved'); await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); await client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} /> : <>
-            <Text style={ui.detailsTitle}>Product details</Text><Text style={ui.meta}>Category · {categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'}</Text><Text style={ui.meta}>Location · {item.storageLocation || 'Not set'}</Text><Text style={ui.meta}>Quantity · {item.quantity} {item.unit}</Text>
+            <Text style={ui.detailsTitle}>Product details</Text><Text style={ui.meta}>Category · {categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'}</Text><Text style={ui.meta}>Location · {item.storageLocation || 'Not set'}</Text><Text style={ui.meta}>Quantity · {formatQuantityUnit(item.quantity, item.unit)}</Text>
             {item.expiryType === 'Estimated' && <Text style={styles.body}>Estimated dates are editable guides, not verified safety deadlines.</Text>}{item.purchaseDate && <Text style={styles.body}>Purchased: {item.purchaseDate}</Text>}{item.notes && <Text style={styles.body}>{item.notes}</Text>}
             {item.status === 'Active' && <>
               {transition?.item.id === item.id ? <><Text style={styles.body}>Mark {item.name} as {transition.action === 'consume' ? 'consumed' : 'discarded'}? It will move to history and future item reminders will stop.</Text>{lifecycle.isError && <Text accessibilityRole="alert" style={styles.error}>{lifecycle.error.message}</Text>}{conflict && <Action title="Reload inventory and review" disabled={inventory.isFetching} onPress={async () => { const result = await inventory.refetch(); if (result.isSuccess) { setTransition(null); lifecycle.reset(); setMessage('Latest details loaded. Review before making changes.'); } }} />}<Action title={lifecycle.isPending ? 'Saving…' : 'Confirm move to history'} disabled={lifecycle.isPending || conflict} onPress={() => lifecycle.mutate()} /><Action variant="secondary" title="Keep active" disabled={lifecycle.isPending} onPress={() => { setTransition(null); lifecycle.reset(); }} /></> : <View style={ui.actionRow}>
@@ -110,13 +110,32 @@ function sortLabel(value: string) {
 function inventoryExpiryLabel(item: InventoryItem) {
   if (item.status !== 'Active') return item.status;
   if (item.expiryStatus === 'Unknown') return 'Expiry unknown';
-  if (item.expiryStatus === 'Expired') return 'Expired · review item';
+  if (item.expiryStatus === 'Expired') {
+    if (item.daysRemaining !== null && item.daysRemaining < 0) {
+      const daysAgo = -item.daysRemaining;
+      const elapsed = daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`;
+      return item.expiryType === 'Estimated' ? `Estimated date passed ${elapsed}` : `Expired ${elapsed}`;
+    }
+    return item.expiryType === 'Estimated' ? 'Estimated date passed · review item' : 'Expired · review item';
+  }
   if (item.daysRemaining === 0) return item.expiryType === 'Estimated' ? 'Estimated date is today' : 'Expires today';
   if (item.expiryStatus === 'ExpiringSoon' && item.daysRemaining !== null) {
     const duration = item.daysRemaining === 1 ? 'tomorrow' : `in ${item.daysRemaining} days`;
     return item.expiryType === 'Estimated' ? `Estimated date ${duration}` : `Expires ${duration}`;
   }
   return 'In stock';
+}
+
+function formatQuantityUnit(quantity: number, unit: string) {
+  const normalizedUnit = unit.toLocaleLowerCase();
+  const pluralUnits: Record<string, string> = { piece: 'pieces', pieces: 'pieces', pack: 'packs', packs: 'packs', bottle: 'bottles', bottles: 'bottles', box: 'boxes', boxes: 'boxes' };
+  const pluralUnit = pluralUnits[normalizedUnit];
+  if (!pluralUnit) return `${quantity} ${unit}`;
+  if (quantity === 1) {
+    const singularUnit: Record<string, string> = { pieces: 'piece', packs: 'pack', bottles: 'bottle', boxes: 'box' };
+    return `${quantity} ${singularUnit[pluralUnit]}`;
+  }
+  return `${quantity} ${pluralUnit}`;
 }
 
 function FilterDropdown({ label, value, open, onPress, options, onSelect }: {

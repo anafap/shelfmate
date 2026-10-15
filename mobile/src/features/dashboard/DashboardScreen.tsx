@@ -1,13 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
+import { FAB_SCROLL_END_PADDING, FloatingActionButton } from '@/components/FloatingActionButton';
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { HouseholdScreen, useHousehold } from '@/features/auth/HouseholdScreen';
 import { Category, InventoryItem, expiryLabel, expiryTone } from '@/features/inventory/types';
 import { api } from '@/lib/session';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 export type Dashboard = {
   householdId: string; householdName: string; householdLocalDate: string;
@@ -19,6 +21,7 @@ export type Dashboard = {
 export default function DashboardScreen() {
   const household = useHousehold();
   const { width } = useWindowDimensions();
+  const insets = useContext(SafeAreaInsetsContext);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const dashboard = useQuery({ queryKey: ['dashboard', household.data?.id], queryFn: () => api<Dashboard>('/households/current/dashboard'), enabled: !!household.data, retry: false });
   const categories = useQuery({ queryKey: ['categories', household.data?.id], queryFn: () => api<Category[]>('/households/current/categories'), enabled: !!household.data, retry: false });
@@ -83,9 +86,14 @@ export default function DashboardScreen() {
       <View style={ui.scrollEndSpace} />
     </>}
     </FoundationScreen>
-    {addMenuOpen && <View style={ui.addOverlay}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Close add menu" style={ui.scrim} onPress={() => setAddMenuOpen(false)} />
-      <View style={ui.addMenu}>
+    <FloatingActionButton
+      label="Add item"
+      expanded={addMenuOpen}
+      bottomInset={width >= 1000 ? insets?.bottom ?? 0 : 0}
+      onPress={() => setAddMenuOpen(open => !open)}
+      onDismiss={() => setAddMenuOpen(false)}
+      testID="home-fab"
+      menuContent={<View style={ui.addMenu}>
         <Link href="/add-inventory" asChild>
           <Pressable accessibilityRole="button" style={ui.addOption} onPress={() => setAddMenuOpen(false)}>
             <View style={ui.addOptionIcon}><SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor={palette.green} size={23} /></View>
@@ -100,11 +108,8 @@ export default function DashboardScreen() {
             <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={16} />
           </Pressable>
         </Link>
-      </View>
-    </View>}
-    <Pressable accessibilityRole="button" accessibilityLabel={addMenuOpen ? 'Close add menu' : 'Add item'} accessibilityState={{ expanded: addMenuOpen }} style={ui.fab} onPress={() => setAddMenuOpen(open => !open)}>
-      <SymbolView name={addMenuOpen ? { ios: 'xmark', android: 'close', web: 'close' } : { ios: 'plus', android: 'add', web: 'add' }} tintColor="#fff" size={28} />
-    </Pressable>
+      </View>}
+    />
   </View>;
 }
 
@@ -195,8 +200,6 @@ const ui = StyleSheet.create({
   emptyCard: { padding: 17, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: palette.border, gap: 5 },
   emptyTitle: { color: palette.ink, fontSize: 17, fontWeight: '700' },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
-  addOverlay: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 80 },
-  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(13, 35, 27, 0.28)' },
   addMenu: { alignSelf: 'flex-end', width: '100%', maxWidth: 420, padding: 6, gap: 0, borderRadius: 18, backgroundColor: '#fff', shadowColor: '#102a30', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
   addOption: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, borderRadius: 13, backgroundColor: '#fff' },
   addOptionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#eaf6ed' },
@@ -204,9 +207,8 @@ const ui = StyleSheet.create({
   addOptionCopy: { flex: 1, gap: 2 },
   addOptionTitle: { color: palette.ink, fontSize: 15, fontWeight: '800' },
   addOptionHint: { color: palette.muted, fontSize: 12 },
-  fab: { position: 'absolute', right: 18, bottom: 14, width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, backgroundColor: '#008b50', borderWidth: 2, borderColor: '#fff', elevation: 7, shadowColor: '#102a30', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
   shoppingCard: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 17, backgroundColor: '#fff' },
-  scrollEndSpace: { height: 78 },
+  scrollEndSpace: { height: FAB_SCROLL_END_PADDING },
   shoppingIcon: { width: 50, height: 50, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#eaf6ed' },
   shoppingCopy: { flex: 1, gap: 3 },
   shoppingCount: { color: palette.ink, fontSize: 17, fontWeight: '800' },

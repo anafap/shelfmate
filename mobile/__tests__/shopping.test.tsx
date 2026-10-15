@@ -21,6 +21,9 @@ async function setup() {
 }
 test('empty checklist supports quick add', async () => {
   const client = await setup(); expect(await screen.findByText('Nothing on your shopping list')).toBeTruthy();
+  expect(screen.getByLabelText('Quick add shopping item')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Add to shopping' })).toBeTruthy();
+  expect(screen.queryByTestId('shopping-fab-button')).toBeNull();
   await fireEvent.changeText(screen.getByLabelText('Quick add shopping item'), 'Milk');
   await fireEvent.press(screen.getByRole('button', { name: 'Add to shopping' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(path, { name: 'Milk' }, 'POST')); client.clear();

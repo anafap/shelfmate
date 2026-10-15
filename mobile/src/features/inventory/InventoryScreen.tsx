@@ -1,14 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
+import { FAB_SCROLL_END_PADDING, FloatingActionButton } from '@/components/FloatingActionButton';
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { useHousehold } from '@/features/auth/HouseholdScreen';
 import { api, ApiError } from '@/lib/session';
 import { Choices, InventoryForm } from './InventoryForm';
 import { Category, InventoryItem, InventoryPage, expiryTone, inventoryPath } from './types';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 export default function InventoryScreen() {
   const household = useHousehold(); const client = useQueryClient();
@@ -22,6 +24,7 @@ export default function InventoryScreen() {
   const [message, setMessage] = useState(''); const [openDropdown, setOpenDropdown] = useState<'status' | 'sort' | null>(null);
   const [openItemId, setOpenItemId] = useState<string | null>(focusedId ?? null);
   const { width } = useWindowDimensions();
+  const insets = useContext(SafeAreaInsetsContext);
   useEffect(() => {
     if (!message) return;
     const timeout = setTimeout(() => setMessage(''), 2400);
@@ -45,7 +48,7 @@ export default function InventoryScreen() {
   function filter(setter: (value: string) => void, value: string) { setter(value); setPage(1); }
   const conflict = lifecycle.error instanceof ApiError && lifecycle.error.status === 409;
   return <View style={ui.screen}>
-    <FoundationScreen title="Inventory" description="Find what you have and review what’s coming up." hideHeading={!focusedId} fill testID="inventory-scroll" topPadding={!focusedId ? 8 : undefined} bottomPadding={focusedId ? undefined : 72}>
+    <FoundationScreen title="Inventory" description="Find what you have and review what’s coming up." hideHeading={!focusedId} fill testID="inventory-scroll" topPadding={!focusedId ? 8 : undefined} bottomPadding={focusedId ? undefined : FAB_SCROLL_END_PADDING}>
       {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={styles.card}><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></View> : !household.data ? <View style={styles.card}><Text style={styles.body}>Create or join a household before adding inventory.</Text><Link href="/" style={{ minHeight: 48, padding: 12, color: '#22634b', fontSize: 16 }}>Go to household setup</Link></View> : <>
         {focusedId ? <Link href="/inventory" accessibilityRole="button" style={ui.backLink}>← All products</Link> : <View style={ui.listHeader}>
           <View style={ui.titleRow}><Text accessibilityRole="header" style={ui.title}>Inventory</Text>{inventory.data && <Text style={ui.count}>{inventory.data.total} {inventory.data.total === 1 ? 'product' : 'products'}</Text>}</View>
@@ -86,7 +89,7 @@ export default function InventoryScreen() {
         {inventory.data && inventory.data.total > inventory.data.pageSize && <View style={ui.toolbar}><Text style={styles.body}>Page {page} of {Math.ceil(inventory.data.total / inventory.data.pageSize)}</Text><Action variant="secondary" title="Previous page" disabled={page <= 1 || inventory.isFetching} onPress={() => setPage(p => p - 1)} /><Action variant="secondary" title="Next page" disabled={page * inventory.data.pageSize >= inventory.data.total || inventory.isFetching} onPress={() => setPage(p => p + 1)} /></View>}
       </>}
     </FoundationScreen>
-    {!focusedId && !!household.data && <View pointerEvents="box-none" testID="inventory-fab-overlay" style={ui.fabOverlay}><Pressable accessibilityRole="button" accessibilityLabel="Add product" style={ui.fab} onPress={() => router.push('/add-inventory')}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} tintColor="#fff" size={28} /></Pressable></View>}
+    {!focusedId && !!household.data && <FloatingActionButton label="Add product" bottomInset={width >= 1000 ? insets?.bottom ?? 0 : 0} onPress={() => router.push('/add-inventory')} testID="inventory-fab" />}
   </View>;
 }
 
@@ -98,7 +101,7 @@ const ui = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }, quantity: { color: '#52665a', backgroundColor: '#f0f5f1', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 9, fontWeight: '600', fontSize: 12 },
   badge: { alignSelf: 'flex-start', color: '#22634b', backgroundColor: '#edf5ef', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, fontSize: 11, fontWeight: '700' }, badge_red: { color: '#9c2727', backgroundColor: '#ffe9e7' }, badge_orange: { color: '#a94d00', backgroundColor: '#fff0e3' }, badge_amber: { color: '#85520c', backgroundColor: '#fff4dc' }, badge_green: { color: '#22634b', backgroundColor: '#eaf6ed' }, badge_neutral: { color: '#52665a', backgroundColor: '#f0f5f1' }, expiredProduct: { backgroundColor: '#fff7f5', borderColor: '#f2deda' },
   product: { minHeight: 82, gap: 9, padding: 9, borderRadius: 15, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 }, productHeader: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 9 }, productIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#edf6ef' }, productCopy: { flex: 1, minWidth: 0, gap: 3 }, productTop: { flexDirection: 'row', alignItems: 'center', gap: 6 }, productName: { flex: 1, color: '#102d24', fontSize: 16, fontWeight: '800' }, meta: { color: '#627269', fontSize: 12, lineHeight: 16 },
-  dateRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }, dateText: { color: '#52665a', fontSize: 11 }, backLink: { alignSelf: 'flex-start', minHeight: 48, padding: 12, color: '#22634b', fontSize: 16, fontWeight: '600' }, details: { width: '100%', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e0e8e2' }, detailsTitle: { color: '#193b2e', fontSize: 16, fontWeight: '800' }, fabOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, justifyContent: 'flex-end', alignItems: 'flex-end', paddingRight: 18, paddingBottom: 16 }, fab: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 28, backgroundColor: '#008b50', borderWidth: 2, borderColor: '#fff', elevation: 5, shadowColor: '#102a30', shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  dateRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }, dateText: { color: '#52665a', fontSize: 11 }, backLink: { alignSelf: 'flex-start', minHeight: 48, padding: 12, color: '#22634b', fontSize: 16, fontWeight: '600' }, details: { width: '100%', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e0e8e2' }, detailsTitle: { color: '#193b2e', fontSize: 16, fontWeight: '800' },
 });
 
 function sortLabel(value: string) {

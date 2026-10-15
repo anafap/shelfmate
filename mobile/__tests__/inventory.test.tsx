@@ -45,7 +45,8 @@ test('Inventory keeps the add form closed and opens the shared dedicated form fr
   const fabOverlay = screen.getByTestId('inventory-fab-overlay');
   expect(fabOverlay.parent).toBe(scroll.parent);
   expect(fabOverlay.props.style).toEqual(expect.objectContaining({ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }));
-  expect(scroll.props.contentContainerStyle[1]).toEqual(expect.objectContaining({ paddingTop: 8, paddingBottom: 72 }));
+  expect(scroll.props.contentContainerStyle[1]).toEqual(expect.objectContaining({ paddingTop: 8, paddingBottom: 80 }));
+  expect(screen.getByTestId('inventory-fab-button').props.style[0]).toEqual(expect.objectContaining({ width: 56, height: 56, right: 16 }));
   await fireEvent.press(screen.getByRole('button', { name: 'Add product' }));
   expect(mockPush).toHaveBeenCalledWith('/add-inventory');
   client.clear();

@@ -8,7 +8,7 @@ import { FAB_SCROLL_END_PADDING, FloatingActionButton } from '@/components/Float
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { useHousehold } from '@/features/auth/HouseholdScreen';
 import { api, ApiError } from '@/lib/session';
-import { Choices, InventoryForm } from './InventoryForm';
+import { Choices } from './InventoryForm';
 import { Category, InventoryItem, InventoryPage, expiryTone, inventoryPath } from './types';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
@@ -20,7 +20,6 @@ export default function InventoryScreen() {
   const [category, setCategory] = useState(''); const [status, setStatus] = useState('Active');
   const [sort, setSort] = useState('expiry'); const [page, setPage] = useState(1);
   const [transition, setTransition] = useState<{ item: InventoryItem; action: 'consume' | 'discard' } | null>(null);
-  const [editor, setEditor] = useState<InventoryItem | null>(null);
   const [message, setMessage] = useState(''); const [openDropdown, setOpenDropdown] = useState<'status' | 'sort' | null>(null);
   const [openItemId, setOpenItemId] = useState<string | null>(focusedId ?? null);
   const { width } = useWindowDimensions();
@@ -47,6 +46,11 @@ export default function InventoryScreen() {
   }});
   function filter(setter: (value: string) => void, value: string) { setter(value); setPage(1); }
   const conflict = lifecycle.error instanceof ApiError && lifecycle.error.status === 409;
+  function toggleProduct(id: string) {
+    setOpenItemId(current => current === id ? null : id);
+    setTransition(null);
+    lifecycle.reset();
+  }
   return <View style={ui.screen}>
     <FoundationScreen title="Inventory" description="Find what you have and review what’s coming up." hideHeading={!focusedId} fill testID="inventory-scroll" topPadding={!focusedId ? 8 : undefined} bottomPadding={focusedId ? undefined : FAB_SCROLL_END_PADDING}>
       {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={styles.card}><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></View> : !household.data ? <View style={styles.card}><Text style={styles.body}>Create or join a household before adding inventory.</Text><Link href="/" style={{ minHeight: 48, padding: 12, color: '#22634b', fontSize: 16 }}>Go to household setup</Link></View> : <>
@@ -66,23 +70,21 @@ export default function InventoryScreen() {
         {inventory.isPending && <ActivityIndicator accessibilityLabel="Loading inventory" />}
         {!inventory.isPending && !inventory.isError && inventory.data?.items.length === 0 && <View style={styles.card}><Text style={styles.heading}>{inventory.data.total === 0 ? 'No matching products yet' : 'No products on this page'}</Text><Text style={styles.body}>Add a product or change the filters to view household inventory and history.</Text></View>}
         <View style={ui.grid}>{inventory.data?.items.map(item => <View key={item.id} style={[ui.product, item.status === 'Active' && expiryTone(item) === 'red' && ui.expiredProduct, { width: width >= 1000 ? '48.5%' : '100%' }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} accessibilityState={{ expanded: openItemId === item.id }} onPress={() => setOpenItemId(openItemId === item.id ? null : item.id)} style={ui.productHeader}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} accessibilityState={{ expanded: openItemId === item.id }} onPress={() => toggleProduct(item.id)} style={ui.productHeader}>
           <View style={ui.productIcon}><SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor="#008b50" size={22} /></View>
           <View style={ui.productCopy}><View style={ui.productTop}><Text numberOfLines={1} accessibilityRole="header" style={ui.productName}>{item.name}</Text><Text style={ui.quantity}>{formatQuantityUnit(item.quantity, item.unit)}</Text></View><Text numberOfLines={1} style={ui.meta}>{categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'} · {item.storageLocation || 'Location not set'}</Text>
             <View style={ui.dateRow}><Text style={[ui.badge, ui[`badge_${expiryTone(item)}`]]}>{inventoryExpiryLabel(item)}</Text>{item.expiryDate && <Text style={ui.dateText}>{item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} · {item.expiryDate}</Text>}</View>
           </View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor="#7a8981" size={17} />
           </Pressable>
           {openItemId === item.id && <View style={ui.details}>
-            {editor?.id === item.id ? <InventoryForm key={item.version} item={item} categories={categories.data ?? []} onCancel={() => setEditor(null)} onReload={latest => { setEditor(latest); client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} onSaved={async () => { setEditor(null); setMessage('Product saved'); await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] }); await client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} /> : <>
             <Text style={ui.detailsTitle}>Product details</Text><Text style={ui.meta}>Category · {categories.data?.find(c => c.id === item.categoryId)?.name ?? 'Category'}</Text><Text style={ui.meta}>Location · {item.storageLocation || 'Not set'}</Text><Text style={ui.meta}>Quantity · {formatQuantityUnit(item.quantity, item.unit)}</Text>
             {item.expiryType === 'Estimated' && <Text style={styles.body}>Estimated dates are editable guides, not verified safety deadlines.</Text>}{item.purchaseDate && <Text style={styles.body}>Purchased: {item.purchaseDate}</Text>}{item.notes && <Text style={styles.body}>{item.notes}</Text>}
             {item.status === 'Active' && <>
-              {transition?.item.id === item.id ? <><Text style={styles.body}>Mark {item.name} as {transition.action === 'consume' ? 'consumed' : 'discarded'}? It will move to history and future item reminders will stop.</Text>{lifecycle.isError && <Text accessibilityRole="alert" style={styles.error}>{lifecycle.error.message}</Text>}{conflict && <Action title="Reload inventory and review" disabled={inventory.isFetching} onPress={async () => { const result = await inventory.refetch(); if (result.isSuccess) { setTransition(null); lifecycle.reset(); setMessage('Latest details loaded. Review before making changes.'); } }} />}<Action title={lifecycle.isPending ? 'Saving…' : 'Confirm move to history'} disabled={lifecycle.isPending || conflict} onPress={() => lifecycle.mutate()} /><Action variant="secondary" title="Keep active" disabled={lifecycle.isPending} onPress={() => { setTransition(null); lifecycle.reset(); }} /></> : <View style={ui.actionRow}>
-                <InventoryAction label={`Edit ${item.name}`} title="Edit" icon="pencil" tone="neutral" onPress={() => setEditor(item)} />
+              {transition?.item.id === item.id ? <TransitionConfirm action={transition.action} name={item.name} error={lifecycle.isError ? lifecycle.error.message : undefined} busy={lifecycle.isPending} conflict={conflict} onConfirm={() => lifecycle.mutate()} onCancel={() => { setTransition(null); lifecycle.reset(); }} onReload={async () => { const result = await inventory.refetch(); if (result.isSuccess) { setTransition(null); lifecycle.reset(); setMessage('Latest details loaded. Review before making changes.'); } }} /> : <View style={ui.actionRow}>
+                <InventoryAction label={`Edit ${item.name}`} title="Edit" icon="pencil" tone="neutral" onPress={() => router.push({ pathname: '/edit-inventory', params: { itemId: item.id } })} />
                 <InventoryAction label={`Mark ${item.name} consumed`} title="Consumed" icon="check" tone="green" onPress={() => { lifecycle.reset(); setTransition({ item, action: 'consume' }); }} />
                 <InventoryAction label={`Mark ${item.name} discarded`} title="Discarded" icon="trash" tone="red" onPress={() => { lifecycle.reset(); setTransition({ item, action: 'discard' }); }} />
               </View>}
-            </>}
             </>}
           </View>}
         </View>)}</View>
@@ -98,6 +100,7 @@ const ui = StyleSheet.create({
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }, searchBar: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, borderRadius: 13, backgroundColor: '#eef2ef' }, searchInput: { flex: 1, minHeight: 46, paddingVertical: 8, color: '#193b2e', fontSize: 15 }, dropdownRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, feedback: { color: '#22634b', fontSize: 13, fontWeight: '700' },
   dropdown: { flex: 1, minWidth: 0, position: 'relative' }, dropdownOpen: { zIndex: 10 }, dropdownButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, borderWidth: 1, borderColor: '#dce6df', borderRadius: 11, backgroundColor: '#fff' }, dropdownLabel: { color: '#64736b', fontSize: 11 }, dropdownValue: { flex: 1, color: '#193b2e', fontSize: 13, fontWeight: '700' }, dropdownOptions: { position: 'absolute', zIndex: 10, top: 48, left: 0, right: 0, padding: 5, borderWidth: 1, borderColor: '#dce6df', borderRadius: 12, backgroundColor: '#fff', elevation: 6, shadowColor: '#18382b', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }, dropdownOption: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 9, borderRadius: 8 }, dropdownOptionSelected: { backgroundColor: '#edf5ef' }, dropdownOptionText: { color: '#193b2e', fontSize: 13 }, clearFilters: { alignSelf: 'flex-end', minHeight: 24, justifyContent: 'center', paddingHorizontal: 7 }, clearFiltersText: { color: '#22634b', fontSize: 12, fontWeight: '600' },
   actionRow: { flexDirection: 'row', gap: 7 }, actionButton: { flex: 1, minWidth: 0, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 6, borderWidth: 1, borderRadius: 10 }, actionNeutral: { backgroundColor: '#f0f5f1', borderColor: '#dce6df' }, actionGreen: { backgroundColor: '#eaf6ed', borderColor: '#d3e8d8' }, actionRed: { backgroundColor: '#fff5f3', borderColor: '#f2deda' }, actionText: { fontSize: 12, fontWeight: '700' },
+  confirmation: { gap: 8, padding: 11, borderRadius: 14, borderWidth: 1 }, confirmationGreen: { backgroundColor: '#f2faf4', borderColor: '#d5e9da' }, confirmationRed: { backgroundColor: '#fff8f6', borderColor: '#efdbd7' }, confirmationTitle: { color: '#193b2e', fontSize: 14, lineHeight: 20, fontWeight: '800' }, confirmationText: { color: '#52665a', fontSize: 12, lineHeight: 17 }, confirmationError: { color: '#9c2727', fontSize: 12, lineHeight: 17, fontWeight: '600' }, confirmationActions: { flexDirection: 'row', gap: 8, paddingTop: 2 }, confirmationButton: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, borderRadius: 10, borderWidth: 1 }, confirmationButtonText: { fontSize: 12, fontWeight: '700' }, confirmationPrimaryGreen: { backgroundColor: '#22634b', borderColor: '#22634b' }, confirmationPrimaryRed: { backgroundColor: '#fff0ed', borderColor: '#f0d4ce' }, confirmationPrimaryGreenText: { color: '#fff' }, confirmationPrimaryRedText: { color: '#9c2727' }, confirmationSecondary: { backgroundColor: '#fff', borderColor: '#dce6df' }, confirmationSecondaryText: { color: '#22634b' }, confirmationReload: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center', paddingHorizontal: 8 }, confirmationReloadText: { color: '#22634b', fontSize: 12, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }, quantity: { color: '#52665a', backgroundColor: '#f0f5f1', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 9, fontWeight: '600', fontSize: 12 },
   badge: { alignSelf: 'flex-start', color: '#22634b', backgroundColor: '#edf5ef', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, fontSize: 11, fontWeight: '700' }, badge_red: { color: '#9c2727', backgroundColor: '#ffe9e7' }, badge_orange: { color: '#a94d00', backgroundColor: '#fff0e3' }, badge_amber: { color: '#85520c', backgroundColor: '#fff4dc' }, badge_green: { color: '#22634b', backgroundColor: '#eaf6ed' }, badge_neutral: { color: '#52665a', backgroundColor: '#f0f5f1' }, expiredProduct: { backgroundColor: '#fff7f5', borderColor: '#f2deda' },
   product: { minHeight: 82, gap: 9, padding: 9, borderRadius: 15, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 }, productHeader: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 9 }, productIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#edf6ef' }, productCopy: { flex: 1, minWidth: 0, gap: 3 }, productTop: { flexDirection: 'row', alignItems: 'center', gap: 6 }, productName: { flex: 1, color: '#102d24', fontSize: 16, fontWeight: '800' }, meta: { color: '#627269', fontSize: 12, lineHeight: 16 },
@@ -162,4 +165,22 @@ function InventoryAction({ label, title, icon, tone, onPress }: { label: string;
     trash: { ios: 'trash', android: 'delete_outline', web: 'delete_outline' },
   };
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[ui.actionButton, tone === 'red' ? ui.actionRed : tone === 'green' ? ui.actionGreen : ui.actionNeutral]}><SymbolView name={symbols[icon]} tintColor={color} size={16} /><Text numberOfLines={1} style={[ui.actionText, { color }]}>{title}</Text></Pressable>;
+}
+
+function TransitionConfirm({ action, name, error, busy, conflict, onConfirm, onCancel, onReload }: {
+  action: 'consume' | 'discard'; name: string; error?: string; busy: boolean; conflict: boolean;
+  onConfirm: () => void; onCancel: () => void; onReload: () => void;
+}) {
+  const consumed = action === 'consume';
+  const confirmLabel = consumed ? 'Confirm consumed' : 'Confirm discarded';
+  return <View style={[ui.confirmation, consumed ? ui.confirmationGreen : ui.confirmationRed]}>
+    <Text style={ui.confirmationTitle}>Mark {name} as {consumed ? 'consumed' : 'discarded'}?</Text>
+    <Text style={ui.confirmationText}>This moves the product to history and stops future reminders.</Text>
+    {!!error && <Text accessibilityRole="alert" style={ui.confirmationError}>{error}</Text>}
+    {conflict && <Pressable accessibilityRole="button" disabled={busy} onPress={onReload} style={ui.confirmationReload}><Text style={ui.confirmationReloadText}>Reload inventory and review</Text></Pressable>}
+    <View style={ui.confirmationActions}>
+      <Pressable accessibilityRole="button" accessibilityLabel={confirmLabel} disabled={busy || conflict} onPress={onConfirm} style={[ui.confirmationButton, consumed ? ui.confirmationPrimaryGreen : ui.confirmationPrimaryRed]}><Text style={[ui.confirmationButtonText, consumed ? ui.confirmationPrimaryGreenText : ui.confirmationPrimaryRedText]}>{busy ? 'Saving…' : confirmLabel}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Keep active" disabled={busy} onPress={onCancel} style={[ui.confirmationButton, ui.confirmationSecondary]}><Text style={[ui.confirmationButtonText, ui.confirmationSecondaryText]}>Keep active</Text></Pressable>
+    </View>
+  </View>;
 }

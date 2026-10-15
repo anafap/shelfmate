@@ -2,13 +2,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import InventoryScreen from '@/features/inventory/InventoryScreen';
 import AddInventoryScreen from '@/features/inventory/AddInventoryScreen';
+import EditInventoryScreen from '@/features/inventory/EditInventoryScreen';
 import { InventoryForm } from '@/features/inventory/InventoryForm';
 import { Category, InventoryItem, inventoryPath } from '@/features/inventory/types';
 import { api, ApiError } from '@/lib/session';
 
 let mockRouteParams: { itemId?: string } = {};
-const mockPush = jest.fn(); const mockReplace = jest.fn();
-jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), useLocalSearchParams: () => mockRouteParams, router: { push: (...args: unknown[]) => mockPush(...args), replace: (...args: unknown[]) => mockReplace(...args) }, useNavigation: () => ({ setOptions: jest.fn() }) }));
+const mockPush = jest.fn(); const mockReplace = jest.fn(); const mockBack = jest.fn(); const mockCanGoBack = jest.fn(() => true);
+jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), useLocalSearchParams: () => mockRouteParams, router: { push: (...args: unknown[]) => mockPush(...args), replace: (...args: unknown[]) => mockReplace(...args), back: (...args: unknown[]) => mockBack(...args), canGoBack: () => mockCanGoBack() }, useNavigation: () => ({ setOptions: jest.fn() }) }));
 
 async function chooseDate(label: string, date: string) {
   await fireEvent.press(screen.getByRole('button', { name: label }));
@@ -36,7 +37,12 @@ async function setup(form = false) {
   await render(<QueryClientProvider client={client}>{form ? <InventoryForm item={null} categories={categories} onSaved={async () => {}} onCancel={() => {}} onReload={() => {}} /> : <InventoryScreen />}</QueryClientProvider>);
   return client;
 }
-beforeEach(() => { jest.clearAllMocks(); items = []; mockRouteParams = {}; jest.mocked(api).mockImplementation(defaultApi); });
+async function setupEditor() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
+  await render(<QueryClientProvider client={client}><EditInventoryScreen /></QueryClientProvider>);
+  return client;
+}
+beforeEach(() => { jest.clearAllMocks(); mockCanGoBack.mockReturnValue(true); items = []; mockRouteParams = {}; jest.mocked(api).mockImplementation(defaultApi); });
 test('Inventory keeps the add form closed and opens the shared dedicated form from its floating button', async () => {
   const client = await setup();
   expect(await screen.findByText('No matching products yet')).toBeTruthy();
@@ -118,8 +124,54 @@ test('optional expiry can be selected and cleared without entering a date', asyn
   await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ expiryDate: null, expiryType: 'Unknown' }), 'POST'));
   client.clear();
 });
+test('Edit opens the dedicated screen without mounting the form inline', async () => {
+  items = [milk];
+  const client = await setup();
+  await screen.findByRole('button', { name: 'Open Milk' });
+  await fireEvent.press(screen.getByRole('button', { name: 'Open Milk' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Edit Milk' }));
+  expect(mockPush).toHaveBeenCalledWith({ pathname: '/edit-inventory', params: { itemId: 'milk' } });
+  expect(screen.queryByLabelText('Product name')).toBeNull();
+  client.clear();
+});
+
+test('dedicated editor prepopulates fields and Cancel or Back does not update the product', async () => {
+  mockRouteParams = { itemId: 'milk' };
+  const client = await setupEditor();
+  expect(await screen.findByLabelText('Product name')).toBeTruthy();
+  expect(screen.getByLabelText('Product name').props.value).toBe('Milk');
+  expect(screen.getByLabelText('Quantity').props.value).toBe('1');
+  expect(screen.getByRole('button', { name: 'Unit: bottle' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Category: Dairy' })).toBeTruthy();
+  expect(screen.getByLabelText('Storage location').props.value).toBe('Fridge');
+  expect(screen.getByText('Edit Product')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeTruthy();
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'My draft');
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+  expect(mockBack).toHaveBeenCalledTimes(1);
+  await fireEvent.press(screen.getByRole('button', { name: 'Back to Inventory' }));
+  expect(mockBack).toHaveBeenCalledTimes(2);
+  expect(api).not.toHaveBeenCalledWith(`${inventoryPath}/milk`, expect.anything(), 'PATCH');
+  client.clear();
+});
+
+test('dedicated editor saves changes with existing validation and update API', async () => {
+  mockRouteParams = { itemId: 'milk' };
+  const client = await setupEditor();
+  await screen.findByLabelText('Product name');
+  await fireEvent.changeText(screen.getByLabelText('Product name'), 'Oat milk');
+  await fireEvent.changeText(screen.getByLabelText('Quantity'), '2');
+  await fireEvent.press(screen.getByRole('button', { name: 'Unit: bottle' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Choose pack' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Save Changes' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk`, expect.objectContaining({ name: 'Oat milk', quantity: 2, unit: 'pack', categoryId: 'dairy', storageLocation: 'Fridge', version: 'v1' }), 'PATCH'));
+  await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
+  client.clear();
+});
+
 test('editing a stale version requires reloading and reviewing before another save', async () => {
-  items = [milk]; let latest = milk;
+  let latest = milk;
   jest.mocked(api).mockImplementation(async (path, body, method) => {
     if (method === 'PATCH') {
       if ((body as { version: string }).version === 'v1') { latest = { ...milk, name: 'Partner edit', version: 'v2' }; items = [latest]; throw new ApiError(409, 'This item changed. Reload it and review the latest details before saving.'); }
@@ -128,18 +180,16 @@ test('editing a stale version requires reloading and reviewing before another sa
     if (path === `${inventoryPath}/milk`) return latest as never;
     return defaultApi(path);
   });
-  const client = await setup();
-  await screen.findByRole('button', { name: 'Open Milk' });
-  expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
-  await fireEvent.press(screen.getByRole('button', { name: 'Open Milk' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Edit Milk' }));
+  mockRouteParams = { itemId: 'milk' };
+  const client = await setupEditor();
+  await screen.findByLabelText('Product name');
   await fireEvent.changeText(screen.getByLabelText('Product name'), 'My draft');
-  await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Save Changes' }));
   expect(await screen.findByText('This item changed. Reload it and review the latest details before saving.')).toBeTruthy();
-  await fireEvent.press(screen.getByRole('button', { name: 'Reload latest details (replaces draft)' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Reload latest details' }));
   await waitFor(() => expect(screen.getByLabelText('Product name').props.value).toBe('Partner edit'));
   expect(jest.mocked(api).mock.calls.filter(([, , method]) => method === 'PATCH')).toHaveLength(1);
-  await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Save Changes' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk`, expect.objectContaining({ version: 'v2', name: 'Partner edit' }), 'PATCH')); client.clear();
 });
 test.each(['consume', 'discard'] as const)('%s requires confirmation before moving the item to history', async action => {
@@ -154,9 +204,29 @@ test.each(['consume', 'discard'] as const)('%s requires confirmation before movi
   await screen.findByRole('button', { name: `Mark Milk ${action === 'consume' ? 'consumed' : 'discarded'}` });
   await fireEvent.press(screen.getByRole('button', { name: `Mark Milk ${action === 'consume' ? 'consumed' : 'discarded'}` }));
   expect(api).not.toHaveBeenCalledWith(`${inventoryPath}/milk/${action}`, expect.anything(), 'POST');
-  await fireEvent.press(screen.getByRole('button', { name: 'Confirm move to history' }));
+  await fireEvent.press(screen.getByRole('button', { name: action === 'consume' ? 'Confirm consumed' : 'Confirm discarded' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk/${action}`, { version: 'v1' }, 'POST'));
   expect(await screen.findByText('Item moved to history.')).toBeTruthy(); client.clear();
+});
+test('collapsing and reopening a product clears its pending confirmation and restores Product Details', async () => {
+  items = [milk];
+  const client = await setup();
+  await screen.findByRole('button', { name: 'Open Milk' });
+  await fireEvent.press(screen.getByRole('button', { name: 'Open Milk' }));
+  expect(screen.getByText('Product details')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Mark Milk discarded' }));
+  expect(screen.getByRole('button', { name: 'Confirm discarded' })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Keep active' }));
+  expect(screen.queryByRole('button', { name: 'Confirm discarded' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Mark Milk discarded' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Open Milk' }));
+  expect(screen.queryByRole('button', { name: 'Confirm discarded' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Open Milk' }));
+  expect(screen.getByText('Product details')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Confirm discarded' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Mark Milk discarded' })).toBeTruthy();
+  expect(api).not.toHaveBeenCalledWith(`${inventoryPath}/milk/discard`, expect.anything(), 'POST');
+  client.clear();
 });
 test('inventory expiry copy uses natural date language', async () => {
   items = [{ ...milk, expiryDate: '2026-10-13', daysRemaining: 1 }];

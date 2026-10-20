@@ -36,7 +36,6 @@ public sealed class HouseholdMember
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid HouseholdId { get; set; }
     public Guid UserId { get; set; }
-    public int Slot { get; set; }
     public string Role { get; set; } = "Member";
     public DateTimeOffset JoinedAt { get; set; }
 }

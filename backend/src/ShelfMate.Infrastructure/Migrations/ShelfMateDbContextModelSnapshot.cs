@@ -225,9 +225,6 @@ namespace ShelfMate.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("Slot")
-                        .HasColumnType("integer");
-
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
@@ -236,17 +233,12 @@ namespace ShelfMate.Infrastructure.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.HasIndex("HouseholdId", "Slot")
-                        .IsUnique();
-
                     b.HasIndex("HouseholdId", "UserId")
                         .IsUnique();
 
                     b.ToTable("Members", null, t =>
                         {
                             t.HasCheckConstraint("CK_Member_Role", "\"Role\" IN ('Owner', 'Member')");
-
-                            t.HasCheckConstraint("CK_Member_Slot", "\"Slot\" IN (1, 2)");
                         });
                 });
 

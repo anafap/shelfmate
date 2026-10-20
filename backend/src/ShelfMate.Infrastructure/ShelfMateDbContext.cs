@@ -124,14 +124,12 @@ public sealed class ShelfMateDbContext(DbContextOptions<ShelfMateDbContext> opti
         {
             e.ToTable("Members", t =>
             {
-                t.HasCheckConstraint("CK_Member_Slot", "\"Slot\" IN (1, 2)");
                 t.HasCheckConstraint("CK_Member_Role", "\"Role\" IN ('Owner', 'Member')");
             });
             e.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Household>().WithMany().HasForeignKey(x => x.HouseholdId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.UserId).IsUnique();
             e.HasIndex(x => new { x.HouseholdId, x.UserId }).IsUnique();
-            e.HasIndex(x => new { x.HouseholdId, x.Slot }).IsUnique();
         });
         model.Entity<HouseholdInvite>(e =>
         {

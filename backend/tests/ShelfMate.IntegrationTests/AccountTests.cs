@@ -5,6 +5,8 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -84,7 +86,7 @@ public sealed class AccountTests : IAsyncLifetime
     private static Task<HttpResponseMessage> Redeem(HttpClient client, string token) => client.PostAsJsonAsync("/api/v1/household-invites/redeem", new RedeemRequest(token));
 
     [Fact]
-    public async Task TwoAccountsJoinSameHouseholdAndThirdIsRejected()
+    public async Task MultipleAccountsJoinSameHouseholdAndOutsidersRemainIsolated()
     {
         var (owner, _) = await Register("owner"); var (member, _) = await Register("member"); var (outsider, _) = await Register("outsider");
         var household = await Create(owner);
@@ -92,9 +94,18 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await Redeem(member, first.Token)).StatusCode);
         Assert.Equal(household, await member.GetFromJsonAsync<HouseholdResult>("/api/v1/households/current"));
         Assert.Equal(2, (await member.GetFromJsonAsync<List<MemberResult>>("/api/v1/households/current/members"))!.Count);
-        Assert.Equal(HttpStatusCode.Conflict, (await Redeem(outsider, second.Token)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(outsider, first.Token)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await outsider.GetAsync("/api/v1/households/current/members")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Redeem(outsider, second.Token)).StatusCode);
+        var members = (await owner.GetFromJsonAsync<List<MemberResult>>("/api/v1/households/current/members"))!;
+        Assert.Equal(3, members.Count);
+        Assert.Equal("Owner", members[0].Role);
+        Assert.Equal(members, await outsider.GetFromJsonAsync<List<MemberResult>>("/api/v1/households/current/members"));
+        var (fourth, _) = await Register("fourth");
+        Assert.Equal(HttpStatusCode.OK, (await Redeem(fourth, (await Invite(owner)).Token)).StatusCode);
+        Assert.Equal(4, (await owner.GetFromJsonAsync<List<MemberResult>>("/api/v1/households/current/members"))!.Count);
+        Assert.Equal(HttpStatusCode.Conflict, (await fourth.PostAsJsonAsync("/api/v1/households", new CreateHouseholdRequest("Another home", "Asia/Bahrain"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await Redeem(fourth, (await Invite(owner)).Token)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await member.PostAsJsonAsync("/api/v1/households/current/invites", new InviteRequest(null))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await member.DeleteAsync($"/api/v1/households/current/invites/{second.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await member.GetAsync("/api/v1/households/current/invites")).StatusCode);
@@ -122,15 +133,79 @@ public sealed class AccountTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ConcurrentRedemptionsNeverExceedCapacity()
+    public async Task ConcurrentDistinctInvitationsBothAddMembers()
     {
         var (owner, _) = await Register("owner"); var (a, _) = await Register("a"); var (b, _) = await Register("b");
         await Create(owner);
         var first = await Invite(owner); var second = await Invite(owner);
         var results = await Task.WhenAll(Redeem(a, first.Token), Redeem(b, second.Token));
-        Assert.Single(results, r => r.StatusCode == HttpStatusCode.OK);
-        Assert.Single(results, r => r.StatusCode == HttpStatusCode.Conflict);
-        Assert.Equal(2, (await owner.GetFromJsonAsync<List<MemberResult>>("/api/v1/households/current/members"))!.Count);
+        Assert.All(results, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Equal(3, (await owner.GetFromJsonAsync<List<MemberResult>>("/api/v1/households/current/members"))!.Count);
+    }
+
+    [Fact]
+    public async Task AdditionalMembersShareInventoryShoppingAndEligibleReminders()
+    {
+        var (owner, _) = await Register("owner");
+        await Create(owner);
+        var clients = new List<HttpClient> { owner };
+        foreach (var name in new[] { "second", "third", "fourth" })
+        {
+            var (client, _) = await Register(name);
+            Assert.Equal(HttpStatusCode.OK, (await Redeem(client, (await Invite(owner)).Token)).StatusCode);
+            clients.Add(client);
+        }
+        for (var i = 0; i < clients.Count; i++) await EnableReminders(clients[i], deviceToken: $"ExpoPushToken[test-device-{i}]");
+        var item = await AddProduct(clients[2]);
+        var response = await clients[3].PostAsJsonAsync(ShoppingPath, new SaveShoppingRequest("Shared bread"));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var shopping = (await response.Content.ReadFromJsonAsync<ShoppingResult>())!;
+        foreach (var client in clients)
+        {
+            Assert.Equal(item, await client.GetFromJsonAsync<InventoryResult>($"{InventoryPath}/{item.Id}"));
+            Assert.Equal(shopping, Assert.Single((await client.GetFromJsonAsync<List<ShoppingResult>>(ShoppingPath))!));
+            Assert.Equal(item.Id, Assert.Single((await client.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!).Id);
+        }
+        await RunReminders(); await RunReminders();
+        Assert.Equal(4, push.Sends);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>();
+        Assert.Equal(4, await db.NotificationLogs.Select(x => x.UserId).Distinct().CountAsync());
+        var migrator = db.GetService<IMigrator>();
+        var failure = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync("20261012104259_NotificationPreferencesAndDispatch"));
+        Assert.Contains("more than two members", failure.MessageText);
+        Assert.Equal(4, await db.Members.CountAsync());
+    }
+
+    [Fact]
+    public async Task MembershipMigrationPreservesExistingHouseholdAndSharedRecords()
+    {
+        var (owner, _) = await Register("owner"); var (member, _) = await Register("member");
+        var household = await Create(owner);
+        await Redeem(member, (await Invite(owner)).Token);
+        var item = await AddProduct(member);
+        var shoppingResponse = await owner.PostAsJsonAsync(ShoppingPath, new SaveShoppingRequest("Bread"));
+        Assert.Equal(HttpStatusCode.Created, shoppingResponse.StatusCode);
+        var shopping = await shoppingResponse.Content.ReadFromJsonAsync<ShoppingResult>();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>();
+        var before = await db.Members.AsNoTracking().OrderBy(x => x.Id).ToListAsync();
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261012104259_NotificationPreferencesAndDispatch");
+        await using (var sql = new NpgsqlConnection(connection))
+        {
+            await sql.OpenAsync();
+            await using var command = new NpgsqlCommand("SELECT COUNT(*) FROM \"Members\" WHERE (\"Role\" = 'Owner' AND \"Slot\" = 1) OR (\"Role\" = 'Member' AND \"Slot\" = 2)", sql);
+            Assert.Equal(2L, await command.ExecuteScalarAsync());
+        }
+        await migrator.MigrateAsync();
+        var after = await db.Members.AsNoTracking().OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(before.Select(x => (x.Id, x.HouseholdId, x.UserId, x.Role, x.JoinedAt)), after.Select(x => (x.Id, x.HouseholdId, x.UserId, x.Role, x.JoinedAt)));
+        Assert.Equal(household, await member.GetFromJsonAsync<HouseholdResult>("/api/v1/households/current"));
+        Assert.Equal(item, await owner.GetFromJsonAsync<InventoryResult>($"{InventoryPath}/{item.Id}"));
+        Assert.Equal(shopping, Assert.Single((await member.GetFromJsonAsync<List<ShoppingResult>>(ShoppingPath))!));
+        var (third, _) = await Register("third");
+        Assert.Equal(HttpStatusCode.OK, (await Redeem(third, (await Invite(owner)).Token)).StatusCode);
     }
 
     [Fact]
@@ -479,16 +554,22 @@ public sealed class AccountTests : IAsyncLifetime
                 options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
                 options.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler();
             }).Build();
+        var (third, thirdSession) = await Register("third");
+        await Redeem(third, (await Invite(owner)).Token);
+        await using var additional = Connection(thirdSession.AccessToken);
+        var thirdReceived = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        additional.On<System.Text.Json.JsonElement>("ResourceChanged", value => { if (value.GetProperty("resource").GetString() == "inventory") thirdReceived.TrySetResult("inventory"); });
         await using var shared = Connection(memberSession.AccessToken);
         await using var other = Connection(outsiderSession.AccessToken);
         var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var outsiderEvents = 0;
-        shared.On<System.Text.Json.JsonElement>("ResourceChanged", value => received.TrySetResult(value.GetProperty("resource").GetString()!));
+        shared.On<System.Text.Json.JsonElement>("ResourceChanged", value => { if (value.GetProperty("resource").GetString() == "inventory") received.TrySetResult("inventory"); });
         other.On<System.Text.Json.JsonElement>("ResourceChanged", value => { if (value.GetProperty("resource").GetString() == "inventory") Interlocked.Increment(ref outsiderEvents); });
-        await shared.StartAsync(); await other.StartAsync();
+        await shared.StartAsync(); await additional.StartAsync(); await other.StartAsync();
         await Assert.ThrowsAsync<Microsoft.AspNetCore.SignalR.HubException>(() => other.InvokeAsync("JoinHousehold", household.Id));
         await AddProduct(owner);
         Assert.Equal("inventory", await received.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal("inventory", await thirdReceived.Task.WaitAsync(TimeSpan.FromSeconds(10)));
         await Task.Delay(200);
         Assert.Equal(0, outsiderEvents);
         Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().PostAsync("/hubs/household/negotiate?negotiateVersion=1", null)).StatusCode);
@@ -500,11 +581,11 @@ public sealed class AccountTests : IAsyncLifetime
         var dispatcher = scope.ServiceProvider.GetRequiredService<IReminderDispatcher>();
         if (receipts) await dispatcher.CheckReceipts(CancellationToken.None); else await dispatcher.Dispatch(CancellationToken.None);
     }
-    private static async Task EnableReminders(HttpClient client, int[]? offsets = null, string time = "00:00", Guid[]? muted = null)
+    private static async Task EnableReminders(HttpClient client, int[]? offsets = null, string time = "00:00", Guid[]? muted = null, string deviceToken = "ExpoPushToken[test-device]")
     {
         var response = await client.PutAsJsonAsync("/api/v1/me/notification-preferences", new PreferenceRequest(true, true, offsets ?? [7, 3, 1, 0], muted ?? [], time));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var device = await client.PostAsJsonAsync("/api/v1/me/push-devices", new DeviceRequest("ExpoPushToken[test-device]", "android"));
+        var device = await client.PostAsJsonAsync("/api/v1/me/push-devices", new DeviceRequest(deviceToken, "android"));
         Assert.Equal(HttpStatusCode.OK, device.StatusCode);
     }
     [Fact]

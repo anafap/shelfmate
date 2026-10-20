@@ -146,7 +146,7 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
         if (await db.Members.AnyAsync(x => x.UserId == userId)) throw Error(409, "You already belong to a household.");
         var household = new Household { Name = name, TimeZone = zone, OwnerUserId = userId, CreatedAt = Now };
         db.Households.Add(household);
-        db.Members.Add(new HouseholdMember { HouseholdId = household.Id, UserId = userId, Slot = 1, Role = "Owner", JoinedAt = Now });
+        db.Members.Add(new HouseholdMember { HouseholdId = household.Id, UserId = userId, Role = "Owner", JoinedAt = Now });
         await db.SaveChangesAsync(); await transaction.CommitAsync();
         return View(household);
     }
@@ -159,7 +159,7 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
     public async Task<List<MemberResult>> Members(Guid userId)
     {
         var member = await Membership(userId);
-        return await (from m in db.Members join u in db.Users on m.UserId equals u.Id where m.HouseholdId == member.HouseholdId orderby m.Slot select new MemberResult(u.Id, u.DisplayName, m.Role, m.JoinedAt)).ToListAsync();
+        return await (from m in db.Members join u in db.Users on m.UserId equals u.Id where m.HouseholdId == member.HouseholdId orderby m.Role == "Owner" descending, m.JoinedAt, m.Id select new MemberResult(u.Id, u.DisplayName, m.Role, m.JoinedAt)).ToListAsync();
     }
     public async Task<List<InviteSummary>> Invites(Guid userId)
     {
@@ -172,7 +172,6 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
         var owner = await Owner(userId);
         await using var transaction = await db.Database.BeginTransactionAsync();
         await LockHousehold(owner.HouseholdId);
-        if (await db.Members.CountAsync(x => x.HouseholdId == owner.HouseholdId) >= 2) throw Error(409, "This household already has two members.");
         var token = Token();
         var invite = new HouseholdInvite { HouseholdId = owner.HouseholdId, CreatedBy = userId, TokenHash = Hash(token), InvitedEmail = email, CreatedAt = Now, ExpiresAt = Now.AddDays(7) };
         db.Invites.Add(invite);
@@ -200,8 +199,7 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
         if (invite.RevokedAt is not null || invite.RedeemedAt is not null || invite.ExpiresAt <= Now) throw Error(400, "Invitation is invalid or no longer available.");
         if (invite.InvitedEmail is not null && invite.InvitedEmail != (await db.Users.SingleAsync(x => x.Id == userId)).Email) throw Error(403, "This invitation is for a different email address.");
         if (await db.Members.AnyAsync(x => x.UserId == userId)) throw Error(409, "You already belong to a household.");
-        if (await db.Members.CountAsync(x => x.HouseholdId == householdId) >= 2) throw Error(409, "This household already has two members.");
-        db.Members.Add(new HouseholdMember { HouseholdId = householdId, UserId = userId, Slot = 2, JoinedAt = Now });
+        db.Members.Add(new HouseholdMember { HouseholdId = householdId, UserId = userId, JoinedAt = Now });
         invite.RedeemedAt = Now;
         await db.SaveChangesAsync(); await transaction.CommitAsync();
         return View(household);

@@ -6,13 +6,13 @@
 
 ## 1. Product mission
 
-Build a polished Android/iOS application that lets two people manage the same household inventory so they know:
+Build a polished Android/iOS application that lets household members manage the same household inventory so they know:
 
 1. What products are currently at home?
 2. What should they use first because its expiry date is approaching?
 3. What must they buy next?
 
-**Product name:** ShelfMate. **MVP audience:** a household shared by two adults. Design membership and data relationships so a future release can support more members, but enforce a maximum of two active members in the MVP. Each person has their own account; never share login credentials.
+**Product name:** ShelfMate. **MVP audience:** people sharing a household. Support additional household members without a fixed product-level member cap; each account belongs to one household. Each person has their own account; never share login credentials.
 
 A spreadsheet-like experience is not the goal: common actions must be fast, understandable, and mobile-first. Prefer clarity and reliability over an elaborate interface or speculative AI features.
 
@@ -21,8 +21,8 @@ A spreadsheet-like experience is not the goal: common actions must be fast, unde
 Build these end-to-end before adding stretch features:
 
 - Sign up, sign in, sign out, and authenticated session management.
-- Create a household and invite one other person using a secure, expiring, single-use invitation.
-- Both members can see and edit the same household inventory and shopping list; changes must be reflected across devices.
+- Create a household and invite other household members using a secure, expiring, single-use invitation.
+- All members can see and edit the same household inventory and shopping list; changes must be reflected across devices.
 - Add, edit, search, filter, and archive inventory items with category, quantity, unit, optional purchase date, optional expiry date, storage location, and optional notes.
 - Clearly display inventory items as **Active**, **Consumed**, or **Discarded**. An active item's **Expired / Expiring Soon / OK / Unknown** label is _computed_ from its expiry date, household-local current date, and alert thresholds; it is not a separately editable life-cycle status.
 - Organize items by category: Fruits, Vegetables, Dairy, Meat & Poultry, Seafood, Frozen Food, Pantry & Canned, Bakery, Beverages, Medicines, Household Essentials, and Other. Categories are extensible.
@@ -95,7 +95,7 @@ Use stable UUID identifiers, UTC timestamps for events/audit fields, and date-on
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `User`                   | `Id`, display name, normalized unique email, password hash / chosen auth provider ID, created/updated timestamps                                                                                                                                                             |
 | `Household`              | `Id`, name, owner user ID, IANA time zone (default chosen explicitly at creation), created timestamp                                                                                                                                                                         |
-| `HouseholdMember`        | `Id`, household ID, user ID, role (`Owner`/`Member`), join time; unique pair; max two active members for MVP                                                                                                                                                                 |
+| `HouseholdMember`        | `Id`, household ID, user ID, role (`Owner`/`Member`), join time; unique pair; no fixed household member cap; unique user membership                                                                                                                                                                 |
 | `HouseholdInvite`        | `Id`, household ID, hashed random invite token, created by, expiry time, redeemed-at, optional invited email                                                                                                                                                                 |
 | `Category`               | `Id`, name, icon/key, optional system-defined flag                                                                                                                                                                                                                           |
 | `InventoryItem`          | `Id`, household ID, name, category ID, quantity (>0), unit, purchase date nullable, expiry date nullable, expiry type (`Printed`/`Estimated`/`Unknown`), storage location, notes, lifecycle status, reminder enabled, created/updated by and timestamps, concurrency version |
@@ -122,7 +122,7 @@ All household-owned records must carry a `HouseholdId`. Enforce relational const
 ## 6. Shared-household rules and access control
 
 - The authenticated user may access a household resource only if they are a current member of that household. Enforce this **on the server on every read, write, export, hub subscription, and notification lookup**; hiding UI actions is not sufficient.
-- Only an Owner can generate/revoke invitations or manage the household. An invite is cryptographically random, expires (suggested default: 7 days), is single-use, and is stored hashed; enforce household capacity transactionally when redeemed.
+- Only an Owner can generate/revoke invitations or manage the household. An invite is cryptographically random, expires (suggested default: 7 days), is single-use, and is stored hashed; enforce single-use redemption and unique membership transactionally.
 - No cross-household data leakage through IDs, filters, real-time events, cached queries, or logs. Never accept a client-provided user ID as proof of authority.
 - Prefer JWT access tokens with secure refresh-token rotation/revocation if implementing authentication in-house. Store mobile credentials/tokens only in secure OS-backed storage; never hardcode secrets or commit credentials.
 - The final Owner cannot leave or delete their membership without explicitly transferring ownership or deleting the household. Prevent accidental deletion of shared data.
@@ -205,8 +205,8 @@ Prioritize these cases:
 - Printed vs estimated vs unknown expiry; no reminder when expiry is missing.
 - Consumed/discarded products never receive future reminders.
 - Changed dates recalculate alerts; retries cannot create duplicate notifications.
-- Two members see the same item; an outsider cannot read/write or subscribe to their household.
-- Invite expiry, replay, revocation, concurrent redemption, and the maximum-two-member limit.
+- Multiple members see the same item; an outsider cannot read/write or subscribe to their household.
+- Invite expiry, replay, revocation, concurrent redemption, and joining households with more than two members.
 - Concurrent item updates return a conflict, not silent data loss.
 - Purchased shopping item transfer creates one inventory item even with repeated requests.
 - Dashboard counts exclude consumed/discarded items and Use First sorts by nearest non-null expiry.
@@ -220,7 +220,7 @@ Work in vertical slices and demonstrate each slice running through API + databas
 | Phase | Deliverable                                                              | Completion evidence                                                         |
 | ----- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | 0     | Repository scaffold, Docker database, configuration, CI, README          | Fresh clone starts locally; smoke tests pass                                |
-| 1     | Auth and household creation/invitation                                   | Two distinct accounts join one household; third cannot join MVP household   |
+| 1     | Auth and household creation/invitation                                   | Three or more distinct accounts join one household; outsiders remain isolated   |
 | 2     | Categories, inventory CRUD, lifecycle and expiry rules                   | Members can manage the same inventory; calculations pass unit tests         |
 | 3     | Home and Use First dashboard                                             | Correct counts and expiry ordering, including empty state                   |
 | 4     | Shared shopping checklist and purchase transfer                          | Changes sync; repeated transfer creates no duplicate                        |
@@ -228,7 +228,7 @@ Work in vertical slices and demonstrate each slice running through API + databas
 | 6     | In-app alerts, preferences, scheduled reminders, push integration        | Server tests cover scheduling and deduplication; device permissions handled |
 | 7     | Accessibility, validation, error flows, integration tests, release build | All MVP acceptance checks pass and README reflects reality                  |
 
-An MVP is **done** only when two separate accounts on two devices/emulators can add/edit products and shopping items in one household, view consistent expiry information, receive configured eligible alerts when notifications are permitted, and complete the shopping-to-inventory flow safely. A static mockup, local-only list, or untested notification button does **not** qualify.
+An MVP is **done** only when three or more separate accounts across devices/emulators can add/edit products and shopping items in one household, view consistent expiry information, receive configured eligible alerts when notifications are permitted, and complete the shopping-to-inventory flow safely. A static mockup, local-only list, or untested notification button does **not** qualify.
 
 ## 12. Instructions for any coding agent
 
@@ -247,14 +247,14 @@ An MVP is **done** only when two separate accounts on two devices/emulators can 
 
 - Barcode scanning/product metadata lookup (with manual fallback).
 - Receipt OCR with explicit review before adding detected items.
-- Multi-household or more-than-two-member tiers.
+- Multiple households per account.
 - Recurring shopping reminders and stock-low prompts.
 - Waste/consumption insights and simple trends.
 - Recipe suggestions based on Use First, with no unsupported safety claims.
 - Offline mutation queue with well-defined reconciliation and conflict behavior.
 - Localization and home-screen widgets.
 
-**Guiding principle:** ShelfMate should make the correct household state visible to both people, minimize duplicate entry, and help them notice products approaching an entered or clearly marked estimated date.
+**Guiding principle:** ShelfMate should make the correct household state visible to all household members, minimize duplicate entry, and help them notice products approaching an entered or clearly marked estimated date.
 
 1. Think Before Coding
    Don't assume. Don't hide confusion. Surface tradeoffs.

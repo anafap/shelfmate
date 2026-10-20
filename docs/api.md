@@ -13,11 +13,11 @@ Phase 1 adds accounts and households under `/api/v1`. Errors use Problem Details
 - GET `/households/current/invites`: owner-only metadata, never stored tokens.
 - POST `/households/current/invites`: `{invitedEmail?: string}`; owner-only `{id,token,expiresAt}` once. Share privately; expires in seven days.
 - DELETE `/households/current/invites/{id}`: owner-only revocation; 204.
-- POST `/household-invites/redeem`: `{token}`; authenticated joined household. Invalid/expired/revoked/redeemed: 400; capacity/existing membership: 409; email mismatch: 403.
+- POST `/household-invites/redeem`: `{token}`; authenticated joined household. Invalid/expired/revoked/redeemed: 400; existing membership: 409; email mismatch: 403.
 
 Session: `{accessToken,refreshToken,expiresAt,user:{id,displayName,email}}`. Use `Authorization: Bearer <accessToken>`. Access expires in 15 minutes, refresh in 30 days; logout immediately invalidates both. Random opaque tokens are stored only as SHA-256 hashes. Refresh rotation is serialized and single-use. Authentication and invite redemption are limited to 30 requests/minute per remote IP.
 
-Household: `{id,name,timeZone,ownerUserId}`. Members: `{userId,displayName,role,joinedAt}`. Locks and unique membership/slot constraints enforce two-member capacity. No leave/delete/ownership transfer API in this phase.
+Household: `{id,name,timeZone,ownerUserId}`. Members: `{userId,displayName,role,joinedAt}`. There is no fixed household member cap. Locks enforce single-use invitation redemption; unique user membership permits one household per account. Members are listed owner first, then by join time and membership ID. No leave/delete/ownership transfer API in this phase.
 
 Apply explicit EF migrations before startup. Health readiness checks connectivity only. Inventory, shopping, SignalR, in-app alerts, and scheduled push dispatch are described below. Push delivery still requires Expo and Android provider credentials.
 

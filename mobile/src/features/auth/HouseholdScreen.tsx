@@ -37,7 +37,7 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
     await queryClient.invalidateQueries({ queryKey: ['invites'] });
   }});
   function run(task: () => Promise<unknown>) { setMessage(''); action.mutate(task); }
-  return <FoundationScreen title={settings ? 'Account & household' : household.data?.name ?? 'Set up your household'} description={settings ? `Manage your account and the people in your home. Signed in as ${session?.user.displayName ?? ''}.` : household.data ? `Welcome back, ${session?.user.displayName ?? 'housemate'}. Let’s see what’s at home.` : 'Start a home together, or join one with your partner’s invitation code.'} safeAreaTop={safeAreaTop}>
+  return <FoundationScreen title={settings ? 'Account & household' : household.data?.name ?? 'Set up your household'} description={settings ? `Manage your account and the people in your home. Signed in as ${session?.user.displayName ?? ''}.` : household.data ? `Welcome back, ${session?.user.displayName ?? 'housemate'}. Let’s see what’s at home.` : 'Start a home together, or join one with an invitation code.'} safeAreaTop={safeAreaTop}>
     <View style={styles.card}>
       {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry" onPress={() => { household.refetch(); }} /></> : !household.data ? <>
         <Text style={styles.heading}>Create a household</Text>
@@ -45,14 +45,14 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
         <Field label="Household time zone" value={zone} onChangeText={setZone} autoCapitalize="none" />
         <Text style={styles.body}>Confirm your local time zone. Future expiry reminders use this calendar.</Text>
         <Action title="Create household" disabled={action.isPending} onPress={() => run(() => api('/households', { name, timeZone: zone }, 'POST'))} />
-        <Text style={styles.heading}>Or join your partner</Text>
+        <Text style={styles.heading}>Or join a household</Text>
         <Field label="Invitation code" value={token} onChangeText={setToken} autoCapitalize="none" maxLength={64} />
         <Action title="Join household" disabled={action.isPending} onPress={() => run(() => api('/household-invites/redeem', { token: token.trim() }, 'POST'))} />
       </> : <>
         <Text style={styles.heading}>{household.data.name}</Text>
         <Text style={styles.body}>Time zone: {household.data.timeZone}</Text>
         {members.isPending ? <ActivityIndicator /> : members.isError ? <><Text style={styles.error}>{members.error.message}</Text><Action title="Retry members" onPress={() => { members.refetch(); }} /></> : members.data?.map(m => <Text key={m.userId} style={styles.body}>{m.displayName} · {m.role}</Text>)}
-        {!settings && members.data?.length === 1 && <Text style={styles.body}>Your household is ready. Invite your partner from Settings.</Text>}
+        {!settings && members.data?.length === 1 && <Text style={styles.body}>Your household is ready. Invite household members from Settings.</Text>}
         {!settings && <View style={{ gap: 16, padding: 24, borderRadius: 16, backgroundColor: '#edf5ef' }}>
           <Text style={styles.heading}>Know what’s on your shelf</Text>
           <Text style={styles.body}>Add products, find what you need, and review the dates you’ve entered. Your shared inventory starts here.</Text>
@@ -64,8 +64,8 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
             <Text style={styles.heading}>Active invitations</Text>
             {activeInvites.map(i => <View key={i.id} style={{ gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#dce6df' }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-                <Text style={[styles.body, { flexGrow: 1, flexShrink: 1 }]}>For {i.invitedEmail ?? 'your partner'} · expires {new Date(i.expiresAt).toLocaleDateString()}</Text>
-                {revokeId !== i.id && <Action variant="danger" title="Revoke" label={`Revoke invitation for ${i.invitedEmail ?? 'your partner'}`} disabled={action.isPending} onPress={() => setRevokeId(i.id)} />}
+                <Text style={[styles.body, { flexGrow: 1, flexShrink: 1 }]}>For {i.invitedEmail ?? 'a household member'} · expires {new Date(i.expiresAt).toLocaleDateString()}</Text>
+                {revokeId !== i.id && <Action variant="danger" title="Revoke" label={`Revoke invitation for ${i.invitedEmail ?? 'a household member'}`} disabled={action.isPending} onPress={() => setRevokeId(i.id)} />}
               </View>
               {revokeId === i.id && <>
                 <Text style={styles.body}>Revoke this invitation? Its code will stop working.</Text>
@@ -76,9 +76,9 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
               </>}
             </View>)}
           </>}
-          <Text style={styles.heading}>Invite your partner</Text>
-          <Field label="Partner email (optional)" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" maxLength={254} />
-          <Action title="Create invitation" disabled={action.isPending || (members.data?.length ?? 0) >= 2} onPress={() => run(async () => { const result = await api<Invite>('/households/current/invites', { invitedEmail: email || null }, 'POST'); setInvite(result); })} />
+          <Text style={styles.heading}>Invite a household member</Text>
+          <Field label="Member email (optional)" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" maxLength={254} />
+          <Action title="Create invitation" disabled={action.isPending} onPress={() => run(async () => { const result = await api<Invite>('/households/current/invites', { invitedEmail: email || null }, 'POST'); setInvite(result); })} />
           {invite && <>
             <Text style={styles.body}>Share this code privately. It can be used once, before {new Date(invite.expiresAt).toLocaleString()}.</Text>
             <Text selectable style={styles.body}>{invite.token}</Text>

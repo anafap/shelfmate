@@ -44,13 +44,13 @@ test('owner must confirm before revoking an invitation', async () => {
     return undefined as never;
   });
   const client = await setup();
-  await screen.findByRole('button', { name: 'Revoke invitation for your partner' });
+  await screen.findByRole('button', { name: 'Revoke invitation for a household member' });
   expect(screen.getByText('Active invitations')).toBeTruthy();
-  await fireEvent.press(screen.getByRole('button', { name: 'Revoke invitation for your partner' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Revoke invitation for a household member' }));
   expect(api).not.toHaveBeenCalledWith('/households/current/invites/invite', undefined, 'DELETE');
   await fireEvent.press(screen.getByRole('button', { name: 'Keep invitation' }));
-  expect(screen.getByRole('button', { name: 'Revoke invitation for your partner' })).toBeTruthy();
-  await fireEvent.press(screen.getByRole('button', { name: 'Revoke invitation for your partner' }));
+  expect(screen.getByRole('button', { name: 'Revoke invitation for a household member' })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Revoke invitation for a household member' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Confirm revocation' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith('/households/current/invites/invite', undefined, 'DELETE'));
   client.clear();
@@ -75,4 +75,20 @@ test('web invitation gives a copy path when browser sharing is unavailable', asy
   } finally {
     Object.defineProperty(Platform, 'OS', { configurable: true, value: originalPlatform });
   }
+});
+
+test.each([2, 4])('owner can invite another member when household already has %i members', async (count) => {
+  jest.mocked(api).mockImplementation(async (path, _body, method) => {
+    if (path === '/households/current') return household as never;
+    if (path === '/households/current/members') return Array.from({ length: count }, (_, i) => ({ userId: i === 0 ? 'owner' : `member-${i}`, displayName: `Person ${i}`, role: i === 0 ? 'Owner' : 'Member' })) as never;
+    if (path === '/households/current/invites' && method !== 'POST') return [] as never;
+    return { id: 'invite', token: 'new-member-code', expiresAt: '2099-01-01' } as never;
+  });
+  const client = await setup();
+  expect(await screen.findByText(`Person ${count - 1} · Member`)).toBeTruthy();
+  await fireEvent.changeText(screen.getByLabelText('Member email (optional)'), 'housemate@example.com');
+  await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
+  expect(await screen.findByText('new-member-code')).toBeTruthy();
+  expect(api).toHaveBeenCalledWith('/households/current/invites', { invitedEmail: 'housemate@example.com' }, 'POST');
+  client.clear();
 });

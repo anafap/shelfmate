@@ -26,4 +26,11 @@ Baseline validation: 87 mobile tests passed. No Android device was attached at i
 
 ## Remaining acceptance checks
 
-On Android and iOS, review 320–390-point widths, larger system text, long product/household names, screen-reader order, keyboard-open forms, and bottom safe areas. Compare Home and Inventory with the accepted baseline; verify that the same sections and actions remain. Exercise Shopping transfer from a long list, existing-product links, preference save/cancel from both entry points, invitation errors/revocation, disconnected/stale data, and inventory conflict recovery. Build a signed device release after these checks. Backend and two-device live-sync/push acceptance were not rerun for this UI-only change.
+On Android and iOS, review 320–390-point widths, larger system text, long product/household names, screen-reader order, keyboard-open forms, and bottom safe areas. Compare Home and Inventory with the accepted baseline; verify that the same sections and actions remain. Exercise Shopping transfer from a long list, existing-product links, preference save/cancel from both entry points, invitation errors/revocation, disconnected/stale data, and inventory conflict recovery. The signed Android build below is ready for these checks; rebuild if they require further changes. Backend and two-device live-sync/push acceptance were not rerun for this UI-only change.
+
+## Android build follow-up — 2026-10-21
+
+- Built the signed internal Android APK from revision `86c5a26`, including the existing pending Expo project configuration, with the existing local signing key. `apksigner` verified the signature, and its certificate matches the previous APK.
+- Verified package `com.anafap.shelfmate`, ARM64/ARMv7 native libraries, embedded LAN API URL, and updated household invitation copy. The APK and build manifest remain ignored local artifacts under `.local/artifacts/`.
+- Applied the household-membership migration to the local device-test database. The updated API passed liveness/readiness checks over LAN and rejected unauthenticated member-list access with 401.
+- Mobile typecheck, lint, and all 96 tests passed again. The navigation fixture emitted a non-failing warning for its omitted reminder-preferences route; the app route exists. No phones were connected, so installation, three-account acceptance, native visual review, and real push delivery remain unverified for this build.

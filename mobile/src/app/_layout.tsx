@@ -49,6 +49,7 @@ function Navigation() {
           <Tabs.Screen name="edit-inventory" options={{ href: null, title: 'Edit Product' }} />
           <Tabs.Screen name="shopping" options={{ title: 'Shopping', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' }} tintColor={color} size={24} /> }} />
           <Tabs.Screen name="alerts" options={{ title: 'Alerts', tabBarIcon: ({ color }) => <SymbolView name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }} tintColor={color} size={24} /> }} />
+          <Tabs.Screen name="reminder-preferences" options={{ href: null, title: 'Reminders' }} />
           <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
         </Tabs>
     </SyncStatusContext.Provider>

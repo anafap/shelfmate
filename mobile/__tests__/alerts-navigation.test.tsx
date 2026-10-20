@@ -1,0 +1,24 @@
+import { renderRouter, screen } from 'expo-router/testing-library';
+import { fireEvent, waitFor } from '@testing-library/react-native';
+import { View } from 'react-native';
+import RootLayout from '@/app/_layout';
+import Alerts from '@/app/alerts';
+import Reminders from '@/app/reminder-preferences';
+import { api } from '@/lib/session';
+jest.mock('@/lib/session', () => ({ api: jest.fn() }));
+jest.mock('@/lib/push', () => ({ syncExistingPushDevice: jest.fn(async () => {}), registerPushDevice: jest.fn(async () => false) }));
+jest.mock('@/features/sync/useLiveUpdates', () => ({ useLiveUpdates: () => 'Shared updates connected' }));
+jest.mock('@/features/auth/SessionProvider', () => ({ SessionProvider: ({ children }: { children: React.ReactNode }) => children, useSession: () => ({ session: { user: { id: 'owner' } } }) }));
+jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: { id: 'home', name: 'Our home', timeZone: 'Asia/Bahrain' } }) }));
+test('Alerts opens the dedicated editor and cancel returns without saving', async () => {
+  jest.mocked(api).mockImplementation(async url => url.endsWith('notification-preferences') ? { inAppEnabled: true, pushEnabled: false, dayOffsets: [7, 3, 1, 0], mutedCategoryIds: [], localDeliveryTime: '09:00' } as never : [] as never);
+  const placeholder = () => <View />;
+  const routing = renderRouter({ _layout: RootLayout, index: placeholder, inventory: placeholder, shopping: placeholder, alerts: Alerts, 'reminder-preferences': Reminders, settings: placeholder, 'add-inventory': placeholder, 'edit-inventory': placeholder }, { initialUrl: '/alerts' });
+  await routing;
+  await fireEvent.press(await screen.findByRole('link', { name: 'Edit reminder preferences' }));
+  await screen.findByLabelText('Push reminders');
+  expect(routing.getPathname()).toBe('/reminder-preferences');
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel preferences' }));
+  await waitFor(() => expect(routing.getPathname()).toBe('/alerts'));
+  expect(jest.mocked(api).mock.calls.some(([, , method]) => method === 'PUT')).toBe(false);
+});

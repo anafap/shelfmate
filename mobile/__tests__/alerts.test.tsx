@@ -1,3 +1,4 @@
+import ReminderPreferencesScreen from '@/features/alerts/ReminderPreferencesScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import AlertsScreen, { Preferences } from '@/features/alerts/AlertsScreen';
@@ -17,26 +18,24 @@ beforeEach(() => {
     return [item] as never;
   });
 });
-async function setup() {
+async function setup(editor = false) {
   const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false }, mutations: { gcTime: Infinity, retry: false } } });
-  await render(<QueryClientProvider client={client}><AlertsScreen /></QueryClientProvider>); return client;
+  await render(<QueryClientProvider client={client}>{editor ? <ReminderPreferencesScreen /> : <AlertsScreen />}</QueryClientProvider>); return client;
 }
 test('in-app reviews remain available with push disabled and no permission prompt', async () => {
   const client = await setup(); expect(await screen.findByText('Milk')).toBeTruthy();
   expect(screen.getByText('In-app: On · Push: Off')).toBeTruthy(); expect(registerPushDevice).not.toHaveBeenCalled(); client.clear();
 });
 test('denied push permission saves opt-out while keeping in-app reviews', async () => {
-  const client = await setup(); await screen.findByRole('button', { name: 'Edit reminder preferences' });
-  await fireEvent.press(screen.getByRole('button', { name: 'Edit reminder preferences' }));
+  const client = await setup(true); await screen.findByLabelText('Push reminders');
   await fireEvent(screen.getByLabelText('Push reminders'), 'valueChange', true);
   await fireEvent.press(screen.getByRole('button', { name: 'Save reminder preferences' }));
   expect(await screen.findByText('Push permission was denied. In-app reminders remain available.')).toBeTruthy();
   await waitFor(() => expect(api).toHaveBeenCalledWith('/me/notification-preferences', expect.objectContaining({ pushEnabled: false, inAppEnabled: true }), 'PUT'));
-  expect(screen.getByText('Milk')).toBeTruthy(); client.clear();
+  client.clear();
 });
 test('muted categories and changed offsets are saved explicitly', async () => {
-  const client = await setup(); await screen.findByRole('button', { name: 'Edit reminder preferences' });
-  await fireEvent.press(screen.getByRole('button', { name: 'Edit reminder preferences' }));
+  const client = await setup(true); await screen.findByLabelText('Push reminders');
   await fireEvent(screen.getByLabelText('7 days before'), 'valueChange', false);
   await fireEvent.press(screen.getByRole('button', { name: 'Mute categories' }));
   await fireEvent(screen.getByLabelText('Mute Dairy'), 'valueChange', true);
@@ -44,18 +43,36 @@ test('muted categories and changed offsets are saved explicitly', async () => {
   await waitFor(() => expect(api).toHaveBeenCalledWith('/me/notification-preferences', expect.objectContaining({ dayOffsets: [3, 1, 0], mutedCategoryIds: ['dairy'] }), 'PUT')); client.clear();
 });
 test('a custom day can be saved without comma-separated input', async () => {
-  const client = await setup(); await screen.findByRole('button', { name: 'Edit reminder preferences' });
-  await fireEvent.press(screen.getByRole('button', { name: 'Edit reminder preferences' }));
+  const client = await setup(true); await screen.findByLabelText('Push reminders');
   await fireEvent.changeText(screen.getByLabelText('Add another day before (0–365)'), '5');
   await fireEvent.press(screen.getByRole('button', { name: 'Save reminder preferences' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith('/me/notification-preferences', expect.objectContaining({ dayOffsets: [7, 5, 3, 1, 0] }), 'PUT')); client.clear();
 });
 test('reminder time selection saves a household local clock time', async () => {
-  const client = await setup(); await screen.findByRole('button', { name: 'Edit reminder preferences' });
-  await fireEvent.press(screen.getByRole('button', { name: 'Edit reminder preferences' }));
+  const client = await setup(true); await screen.findByLabelText('Push reminders');
   await fireEvent.press(screen.getByRole('button', { name: 'Household reminder time' }));
   const selected = new Date(); selected.setHours(18, 30, 0, 0);
   await fireEvent(screen.getByTestId('reminder-time-picker'), 'onValueChange', {}, selected);
   await fireEvent.press(screen.getByRole('button', { name: 'Save reminder preferences' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith('/me/notification-preferences', expect.objectContaining({ localDeliveryTime: '18:30' }), 'PUT')); client.clear();
+});
+test('a failed save keeps the reminder draft available for retry', async () => {
+  const client = await setup(true); await screen.findByLabelText('Push reminders');
+  await fireEvent.changeText(screen.getByLabelText('Add another day before (0–365)'), '5');
+  jest.mocked(api).mockImplementation(async (path, body) => {
+    if (path === '/me/notification-preferences' && body) throw new Error('Connection lost. Try again.');
+    return preferences as never;
+  });
+  await fireEvent.press(screen.getByRole('button', { name: 'Save reminder preferences' }));
+  expect(await screen.findByText('Connection lost. Try again.')).toBeTruthy();
+  expect(screen.getByLabelText('Add another day before (0–365)').props.value).toBe('5');
+  expect(screen.getByRole('button', { name: 'Save reminder preferences' })).toBeTruthy();
+  client.clear();
+});
+test('empty Alerts offers preferences without requesting push permission', async () => {
+  jest.mocked(api).mockImplementation(async path => path.endsWith('/alerts') ? [] as never : preferences as never);
+  const client = await setup();
+  expect(await screen.findByText('Nothing to review right now')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Edit reminder preferences' })).toBeTruthy();
+  expect(registerPushDevice).not.toHaveBeenCalled(); client.clear();
 });

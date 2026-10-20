@@ -34,11 +34,11 @@ test('home displays authoritative counts and estimated dates below the shared he
   expect(screen.getAllByRole('header', { name: 'ShelfMate' })).toHaveLength(1);
   expect(screen.getByText('5')).toBeTruthy(); expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText('List unavailable')).toBeTruthy();
-  expect(screen.getByText('Estimated · Expires today')).toBeTruthy();
+  expect(screen.getByText('Estimated date is today')).toBeTruthy();
   expect(screen.getByText('before today')).toBeTruthy();
   expect(screen.getByText('Expires today')).toBeTruthy();
   expect(screen.getByText('2 piece  ·  Fruits  ·  Fridge')).toBeTruthy();
-  expect(screen.getByText('Expiry date: 2026-10-12')).toBeTruthy();
+  expect(screen.getByText('Estimated date: Oct 12, 2026')).toBeTruthy();
   expect(api).toHaveBeenCalledWith('/households/current/dashboard'); client.clear();
 });
 
@@ -128,10 +128,10 @@ test('failed refresh keeps counts and labels them stale', async () => {
 test.each([
   [-2, 'Expired 2 days ago'], [-1, 'Expired yesterday'], [0, 'Expires today'], [1, 'Expires tomorrow'], [2, 'Expires in 2 days'],
 ])('formats household-calculated day offset %i naturally', (daysRemaining, expected) => {
-  expect(naturalExpiry({ ...item, daysRemaining, expiryStatus: daysRemaining < 0 ? 'Expired' : 'ExpiringSoon' } as InventoryItem)).toBe(expected);
+  expect(naturalExpiry({ ...item, expiryType: 'Printed', daysRemaining, expiryStatus: daysRemaining < 0 ? 'Expired' : 'ExpiringSoon' } as InventoryItem)).toBe(expected);
 });
 
 test('unknown and non-active items remain clearly labeled', () => {
-  expect(naturalExpiry({ ...item, expiryStatus: 'Unknown', daysRemaining: null } as InventoryItem)).toBe('Expiry date unknown');
+  expect(naturalExpiry({ ...item, expiryStatus: 'Unknown', daysRemaining: null } as InventoryItem)).toBe('Expiry unknown');
   expect(naturalExpiry({ ...item, status: 'Consumed', expiryStatus: null } as InventoryItem)).toBe('Consumed');
 });

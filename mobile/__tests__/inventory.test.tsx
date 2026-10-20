@@ -269,7 +269,7 @@ test('history keeps purchase date and notes accessible without active actions', 
   await fireEvent.press(screen.getByRole('button', { name: 'Status option: Consumed' }));
   await screen.findByRole('button', { name: 'Open Milk' });
   await fireEvent.press(screen.getByRole('button', { name: 'Open Milk' }));
-  expect(screen.getByText('Purchased: 2026-10-01')).toBeTruthy();
+  expect(screen.getByText('Purchased: Oct 1, 2026')).toBeTruthy();
   expect(screen.getByText('Used for dinner')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull(); client.clear();
 });

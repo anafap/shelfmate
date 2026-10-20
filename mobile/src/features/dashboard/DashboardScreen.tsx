@@ -7,7 +7,7 @@ import { FoundationScreen } from '@/components/FoundationScreen';
 import { FAB_SCROLL_END_PADDING, FloatingActionButton } from '@/components/FloatingActionButton';
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { HouseholdScreen, useHousehold } from '@/features/auth/HouseholdScreen';
-import { Category, InventoryItem, expiryLabel, expiryTone } from '@/features/inventory/types';
+import { Category, InventoryItem, expiryLabel, expiryTone, formatProductDate } from '@/features/inventory/types';
 import { api } from '@/lib/session';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
@@ -130,14 +130,14 @@ function ProductCard({ item, category }: { item: InventoryItem; category?: strin
       <View style={ui.productIcon}><SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor={palette.green} size={28} /></View>
       <View style={ui.productCopy}>
         <View style={ui.productTopline}>
-          <Text numberOfLines={1} style={ui.productName}>{item.name}</Text>
+          <Text style={ui.productName}>{item.name}</Text>
           <View style={[ui.expiryPill, ui[`expiry_${tone}`]]}>
             <SymbolView name={expiryIcons[tone]} tintColor={uiColors[tone]} size={15} />
-            <Text numberOfLines={1} style={[ui.expiryText, { color: uiColors[tone] }]}>{item.expiryType === 'Estimated' ? 'Estimated · ' : ''}{label}</Text>
+            <Text style={[ui.expiryText, { color: uiColors[tone] }]}>{label}</Text>
           </View>
         </View>
-        <Text numberOfLines={1} style={ui.productMeta}>{item.quantity} {item.unit}  ·  {category ?? 'Product'}  ·  {item.storageLocation || 'Storage not set'}</Text>
-        {item.expiryDate && <Text numberOfLines={1} style={ui.productLocation}>Expiry date: {item.expiryDate}</Text>}
+        <Text style={ui.productMeta}>{item.quantity} {item.unit}  ·  {category ?? 'Product'}  ·  {item.storageLocation || 'Storage not set'}</Text>
+        {item.expiryDate && <Text style={ui.productLocation}>{item.expiryType === 'Estimated' ? 'Estimated date' : 'Expiry date'}: {formatProductDate(item.expiryDate)}</Text>}
       </View>
       <View style={ui.cardChevron}>
         <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} tintColor={palette.muted} size={18} />
@@ -147,13 +147,6 @@ function ProductCard({ item, category }: { item: InventoryItem; category?: strin
 }
 
 export function naturalExpiry(item: InventoryItem) {
-  if (item.status !== 'Active') return item.status;
-  if (item.expiryStatus === 'Unknown' || item.daysRemaining === null) return 'Expiry date unknown';
-  if (item.daysRemaining === 0) return 'Expires today';
-  if (item.daysRemaining === 1) return 'Expires tomorrow';
-  if (item.daysRemaining === -1) return 'Expired yesterday';
-  if (item.daysRemaining < -1) return `Expired ${Math.abs(item.daysRemaining)} days ago`;
-  if (item.expiryStatus === 'ExpiringSoon') return `Expires in ${item.daysRemaining} days`;
   return expiryLabel(item);
 }
 
@@ -185,18 +178,18 @@ const ui = StyleSheet.create({
   productCard_red: { backgroundColor: '#fff4f2', borderColor: '#f5dfdc' },
   productIcon: { width: 44, height: 44, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#f3f7f4' },
   productCopy: { flex: 1, minWidth: 0, gap: 1 },
-  productTopline: { minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  productName: { flex: 1, minWidth: 0, color: palette.ink, fontSize: 16, lineHeight: 21, fontWeight: '800' },
+  productTopline: { minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  productName: { flex: 1, minWidth: 90, color: palette.ink, fontSize: 16, lineHeight: 21, fontWeight: '800' },
   cardChevron: { width: 24, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
-  expiryPill: { maxWidth: '58%', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 14 },
+  expiryPill: { maxWidth: '100%', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 14 },
   expiry_red: { backgroundColor: '#ffe9e7' },
   expiry_orange: { backgroundColor: '#fff0e3' },
   expiry_amber: { backgroundColor: '#fff4dc' },
   expiry_green: { backgroundColor: '#edf7ef' },
   expiry_neutral: { backgroundColor: '#eff3f2' },
   expiryText: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  productMeta: { flexShrink: 1, color: palette.muted, fontSize: 11, lineHeight: 15 },
-  productLocation: { flexShrink: 1, color: palette.muted, fontSize: 11, lineHeight: 15 },
+  productMeta: { flexShrink: 1, color: palette.muted, fontSize: 13, lineHeight: 18 },
+  productLocation: { flexShrink: 1, color: palette.muted, fontSize: 13, lineHeight: 18 },
   emptyCard: { padding: 17, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: palette.border, gap: 5 },
   emptyTitle: { color: palette.ink, fontSize: 17, fontWeight: '700' },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20 },

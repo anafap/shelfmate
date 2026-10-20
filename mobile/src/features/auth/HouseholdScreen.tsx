@@ -22,6 +22,7 @@ export function useHousehold() {
 export function HouseholdScreen({ settings = false, safeAreaTop = false }: { settings?: boolean; safeAreaTop?: boolean }) {
   const { session } = useSession();
   const household = useHousehold(); const queryClient = useQueryClient();
+  const [setupMode, setSetupMode] = useState<'create' | 'join' | null>(null);
   const [name, setName] = useState('');
   const [zone, setZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Bahrain');
   const [token, setToken] = useState(''); const [email, setEmail] = useState('');
@@ -46,14 +47,24 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
       <Text selectable style={pageUi.body}>{session?.user.email}</Text>
     </View>}
     {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={pageUi.panel}><Text accessibilityRole="alert" style={styles.error}>{household.error.message}</Text><Action title="Retry" onPress={() => { household.refetch(); }} /></View> : !household.data ? <View style={pageUi.panel}>
-        <Text style={styles.heading}>Create a household</Text>
-        <Field label="Household name" value={name} onChangeText={setName} maxLength={80} />
-        <Field label="Household time zone" value={zone} onChangeText={setZone} autoCapitalize="none" />
-        <Text style={styles.body}>Confirm your local time zone. Future expiry reminders use this calendar.</Text>
-        <Action title="Create household" disabled={action.isPending} onPress={() => run(() => api('/households', { name, timeZone: zone }, 'POST'))} />
-        <Text style={styles.heading}>Or join a household</Text>
-        <Field label="Invitation code" value={token} onChangeText={setToken} autoCapitalize="none" maxLength={64} />
-        <Action title="Join household" disabled={action.isPending} onPress={() => run(() => api('/household-invites/redeem', { token: token.trim() }, 'POST'))} />
+      {setupMode === null ? <>
+        <Text style={pageUi.body}>Start a shared household, or use an invitation to join one.</Text>
+        <Action fullWidth title="Create a household" onPress={() => { action.reset(); setSetupMode('create'); }} />
+        <Action fullWidth variant="secondary" title="Join a household" onPress={() => { action.reset(); setSetupMode('join'); }} />
+      </> : <>
+        <Text accessibilityRole="header" style={pageUi.sectionTitle}>{setupMode === 'create' ? 'Create a household' : 'Join a household'}</Text>
+        {setupMode === 'create' ? <>
+          <Field label="Household name" value={name} onChangeText={setName} maxLength={80} editable={!action.isPending} autoFocus />
+          <Field label="Household time zone" value={zone} onChangeText={setZone} autoCapitalize="none" autoCorrect={false} editable={!action.isPending} />
+          <Text style={pageUi.body}>Confirm your local time zone. Expiry dates and reminders use this calendar.</Text>
+          <Action fullWidth title="Create household" disabled={action.isPending || !name.trim() || !zone.trim()} onPress={() => run(() => api('/households', { name: name.trim(), timeZone: zone.trim() }, 'POST'))} />
+        </> : <>
+          <Text style={pageUi.body}>Enter the invitation shared with you. You’ll join using your own account.</Text>
+          <Field label="Invitation code" value={token} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} maxLength={64} editable={!action.isPending} autoFocus />
+          <Action fullWidth title="Join household" disabled={action.isPending || !token.trim()} onPress={() => run(() => api('/household-invites/redeem', { token: token.trim() }, 'POST'))} />
+        </>}
+        <Action variant="secondary" title="Back to household choices" disabled={action.isPending} onPress={() => { action.reset(); setSetupMode(null); }} />
+      </>}
 
     </View> : <>
       <View style={pageUi.panel}>

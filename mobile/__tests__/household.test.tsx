@@ -16,6 +16,7 @@ beforeEach(() => jest.clearAllMocks());
 test('new account can create a household with an explicit timezone', async () => {
   jest.mocked(api).mockResolvedValue(null);
   const client = await setup();
+  await fireEvent.press(await screen.findByRole('button', { name: 'Create a household' }));
   await screen.findByLabelText('Household name');
   await fireEvent.changeText(screen.getByLabelText('Household name'), 'Our home');
   await fireEvent.changeText(screen.getByLabelText('Household time zone'), 'Asia/Bahrain');
@@ -29,6 +30,7 @@ test('invitation redemption is explicit and displays failures', async () => {
     return null as never;
   });
   const client = await setup();
+  await fireEvent.press(await screen.findByRole('button', { name: 'Join a household' }));
   await screen.findByLabelText('Invitation code');
   await fireEvent.changeText(screen.getByLabelText('Invitation code'), 'private-code');
   await fireEvent.press(screen.getByRole('button', { name: 'Join household' }));
@@ -104,5 +106,24 @@ test('member settings show the household without invitation management', async (
   expect(screen.queryByRole('button', { name: 'Create invitation' })).toBeNull();
   expect(api).not.toHaveBeenCalledWith('/households/current/invites');
   expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
+  client.clear();
+});
+test('setup reveals one form at a time and preserves a draft when returning to choices', async () => {
+  jest.mocked(api).mockResolvedValue(null);
+  const client = await setup();
+  await screen.findByRole('button', { name: 'Create a household' });
+  expect(screen.queryByLabelText('Household name')).toBeNull();
+  expect(screen.queryByLabelText('Invitation code')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Create a household' }));
+  await fireEvent.changeText(screen.getByLabelText('Household name'), 'Our home');
+  expect(screen.queryByLabelText('Invitation code')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Back to household choices' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Join a household' }));
+  expect(screen.queryByLabelText('Household name')).toBeNull();
+  expect(screen.getByLabelText('Invitation code')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Back to household choices' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Create a household' }));
+  expect(screen.getByLabelText('Household name').props.value).toBe('Our home');
+  expect(jest.mocked(api).mock.calls.some(([, , method]) => method === 'POST')).toBe(false);
   client.clear();
 });

@@ -9,7 +9,7 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { Action, Field, styles } from '@/features/auth/AccountScreen';
 import { HouseholdScreen, useHousehold } from '@/features/auth/HouseholdScreen';
 import { Choices, InventoryForm } from '@/features/inventory/InventoryForm';
-import { Category, InventoryItem, InventoryPage, inventoryPath } from '@/features/inventory/types';
+import { Category, InventoryItem, InventoryPage, formatProductDate, inventoryPath } from '@/features/inventory/types';
 import { api } from '@/lib/session';
 
 export type ShoppingItem = { id: string; householdId: string; name: string; quantity: number | null; unit: string | null; categoryId: string | null; notes: string | null; status: 'ToBuy' | 'Purchased'; version: string; purchasedByName: string | null; purchasedAt: string | null; linkedInventoryItemId: string | null };
@@ -20,6 +20,7 @@ export default function ShoppingScreen() {
   const [adding, setAdding] = useState(false); const [expandedPurchaseId, setExpandedPurchaseId] = useState<string | null>(null);
   const [name, setName] = useState(''); const [editing, setEditing] = useState<ShoppingItem | null>(null);
   const [quantity, setQuantity] = useState('1'); const [unit, setUnit] = useState('piece'); const [notes, setNotes] = useState(''); const [category, setCategory] = useState('');
+  const [transferBusy, setTransferBusy] = useState(false);
   const [transfer, setTransfer] = useState<ShoppingItem | null>(null); const [separate, setSeparate] = useState(false);
   const [transferName, setTransferName] = useState(''); const [detail, setDetail] = useState<ShoppingItem | null>(null);
   const [openItemId, setOpenItemId] = useState<string | null>(null); const [showPurchased, setShowPurchased] = useState(false); const [message, setMessage] = useState('');
@@ -67,18 +68,6 @@ export default function ShoppingScreen() {
           {showPurchased && list.data.filter(item => item.status === 'Purchased').map(item => renderItem(item, expandedPurchaseId === item.id))}
         </>}
       </>}
-      {transfer && categories.data && <View style={{ gap: 12 }}>
-        <Text style={styles.heading}>Add {transfer.name} to inventory</Text><Text style={styles.body}>Review the product details. Expiry date and storage are optional.</Text>
-        {matches.isPending && <ActivityIndicator accessibilityLabel="Checking inventory for matches" />}
-        {matches.isError && <View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>Could not check existing inventory: {matches.error.message}</Text><Action variant="secondary" title="Retry matching products" onPress={() => { matches.refetch(); }} /></View>}
-        {!!matches.data?.length && <View style={styles.card}><Text style={styles.heading}>Already in inventory</Text>{matches.data.map(item => <View key={item.id} style={{ gap: 4 }}><Link href={{ pathname: '/inventory', params: { itemId: item.id } }} accessibilityRole="button" style={ui.matchLink}>{item.name} · {item.quantity} {item.unit}</Link><Text style={styles.body}>{item.storageLocation}{item.expiryDate ? ` · ${item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} ${item.expiryDate}` : ''}</Text></View>)}</View>}
-        {!!matches.data?.length && <View style={styles.card}><Text style={styles.body}>I reviewed these products and want a separate new item</Text><Switch accessibilityLabel="Confirm separate inventory item" value={separate} onValueChange={setSeparate} /></View>}
-        <InventoryForm key={transfer.version} item={null} initial={transfer} categories={categories.data} saveLabel="Transfer to inventory" onNameChange={value => { setTransferName(value); setSeparate(false); }} onCancel={() => setTransfer(null)} onReload={() => {}} submit={body => {
-          if (!matches.isSuccess) throw new Error('Wait for the inventory check before transferring.'); if (matches.data.length && !separate) throw new Error('Review the matching product or confirm a separate item.');
-          return api(`${path}/${transfer.id}/transfer-to-inventory`, { version: transfer.version, item: body, confirmSeparateItem: separate }, 'POST');
-        }} onSaved={async () => { setTransfer(null); setMessage('Purchase transferred to inventory.'); await refresh(); }} />
-        <Action variant="secondary" title="Cancel transfer" onPress={() => setTransfer(null)} />
-      </View>}
       <Modal visible={!!detail && !editing} animationType="slide" transparent onRequestClose={() => setDetail(null)}>
         <View style={ui.modalBackdrop}><View style={ui.modalCard}>
           <View style={ui.modalHeading}><Text accessibilityRole="header" style={ui.modalTitle} numberOfLines={3}>{detail?.name}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close item details" onPress={() => setDetail(null)} style={ui.close}><Text style={ui.closeText}>×</Text></Pressable></View>
@@ -115,6 +104,25 @@ export default function ShoppingScreen() {
       </Modal>
     </>}
   </FoundationScreen>
+      <Modal visible={!!transfer} animationType="slide" transparent onRequestClose={() => { if (!transferBusy) setTransfer(null); }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={ui.modalBackdrop}>
+        <View accessibilityViewIsModal style={[ui.modalCard, { paddingBottom: Math.max(insets?.bottom ?? 0, 20) }]}>
+        <View style={ui.modalHeading}><Text accessibilityRole="header" style={ui.modalTitle}>Add to inventory</Text></View>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.modalContent}>
+        {transfer && categories.data && <>
+        <Text style={styles.body}>Review the product details. Expiry date and storage are optional.</Text>
+        {matches.isPending && <ActivityIndicator accessibilityLabel="Checking inventory for matches" />}
+        {matches.isError && <View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>Could not check existing inventory: {matches.error.message}</Text><Action variant="secondary" title="Retry matching products" onPress={() => { matches.refetch(); }} /></View>}
+        {!!matches.data?.length && <View style={styles.card}><Text style={styles.heading}>Already in inventory</Text>{matches.data.map(item => <View key={item.id} style={{ gap: 4 }}><Link href={{ pathname: '/inventory', params: { itemId: item.id } }} accessibilityRole="button" style={ui.matchLink} onPress={event => { if (transferBusy) event.preventDefault(); else setTransfer(null); }}>{item.name} · {item.quantity} {item.unit}</Link><Text style={styles.body}>{item.storageLocation}{item.expiryDate ? ` · ${item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} ${formatProductDate(item.expiryDate)}` : ''}</Text></View>)}</View>}
+        {!!matches.data?.length && <View style={styles.card}><Text style={styles.body}>I reviewed these products and want a separate new item</Text><Switch accessibilityLabel="Confirm separate inventory item" disabled={transferBusy} value={separate} onValueChange={setSeparate} /></View>}
+        <InventoryForm onBusyChange={setTransferBusy} key={transfer.version} item={null} initial={transfer} categories={categories.data} saveLabel="Transfer to inventory" onNameChange={value => { setTransferName(value); setSeparate(false); }} onCancel={() => setTransfer(null)} onReload={() => {}} submit={body => {
+          if (!matches.isSuccess) throw new Error('Wait for the inventory check before transferring.'); if (matches.data.length && !separate) throw new Error('Review the matching product or confirm a separate item.');
+          return api(`${path}/${transfer.id}/transfer-to-inventory`, { version: transfer.version, item: body, confirmSeparateItem: separate }, 'POST');
+        }} onSaved={async () => { setTransfer(null); setMessage('Purchase transferred to inventory.'); await refresh(); }} />
+        </>}
+        </ScrollView></View></KeyboardAvoidingView>
+      </Modal>
+
     {!!household.data && !transfer && <FloatingActionButton label="Add shopping item" bottomInset={width >= 1000 ? insets?.bottom ?? 0 : 0} onPress={() => { closeEdit(); setOpenItemId(null); setAdding(true); }} testID="shopping-fab" />}
   </View>;
 
@@ -158,8 +166,8 @@ const ui = StyleSheet.create({
   row: { minHeight: 68, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 15, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e8e2' }, purchasedRow: { backgroundColor: '#fdfefd' },
   checkTarget: { width: 48, height: 48, flexShrink: 0, alignItems: 'center', justifyContent: 'center' }, check: { width: 25, height: 25, borderRadius: 8, borderWidth: 2, borderColor: '#22634b', alignItems: 'center', justifyContent: 'center' }, checked: { backgroundColor: '#22634b' },
   itemContent: { flex: 1, minWidth: 80, minHeight: 48, justifyContent: 'center', gap: 2 }, itemTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, itemName: { flex: 1, color: '#193b2e', fontSize: 16, lineHeight: 21, fontWeight: '700' }, purchasedName: { color: '#52665a' }, itemMeta: { color: '#596b62', fontSize: 13, lineHeight: 18 },
-  options: { width: 44, height: 48, flexShrink: 0, alignItems: 'center', justifyContent: 'center' }, actionMenu: { width: '100%', paddingLeft: 54, paddingTop: 5, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e0e8e2' }, menuAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 }, menuText: { color: '#193b2e', fontSize: 15, fontWeight: '600' }, removeText: { color: '#9c2727', fontSize: 15, fontWeight: '600' },
+  options: { width: 48, height: 48, flexShrink: 0, alignItems: 'center', justifyContent: 'center' }, actionMenu: { width: '100%', paddingLeft: 54, paddingTop: 5, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e0e8e2' }, menuAction: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 8 }, menuText: { color: '#193b2e', fontSize: 15, fontWeight: '600' }, removeText: { color: '#9c2727', fontSize: 15, fontWeight: '600' },
   purchaseInfo: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 2, paddingTop: 9, paddingBottom: 4, paddingLeft: 56, paddingRight: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e5ebe7' }, purchaseMeta: { flex: 1, minWidth: 90, gap: 2 }, purchaseLabel: { color: '#718078', fontSize: 11, fontWeight: '600' }, purchaseValue: { color: '#52665a', fontSize: 13, lineHeight: 18 },
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(16,42,48,0.34)' }, modalCard: { maxHeight: '90%', gap: 14, padding: 20, paddingBottom: 28, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: '#f9fbf9' }, modalContent: { gap: 14, paddingBottom: 12 }, modalHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 }, modalTitle: { flex: 1, color: '#193b2e', fontSize: 23, lineHeight: 29, fontWeight: '700' }, close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#edf2ef' }, closeText: { color: '#193b2e', fontSize: 28, lineHeight: 30 }, stateLine: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#eaf3ed' }, statusDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#ad5c00' }, statusDotPurchased: { backgroundColor: '#22634b' }, stateText: { color: '#22634b', fontSize: 14, fontWeight: '700' }, infoRow: { gap: 3, paddingVertical: 4 }, infoLabel: { color: '#596b62', fontSize: 13, fontWeight: '600' }, infoValue: { color: '#193b2e', fontSize: 16, lineHeight: 22 }, inventoryLink: { minHeight: 44, justifyContent: 'center' }, inventoryLinkText: { color: '#22634b', fontSize: 15, fontWeight: '700', textDecorationLine: 'underline' }, modalActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(16,42,48,0.34)' }, modalCard: { maxHeight: '90%', gap: 14, padding: 20, paddingBottom: 28, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: '#f9fbf9' }, modalContent: { gap: 14, paddingBottom: 12 }, modalHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 }, modalTitle: { flex: 1, color: '#193b2e', fontSize: 23, lineHeight: 29, fontWeight: '700' }, close: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#edf2ef' }, closeText: { color: '#193b2e', fontSize: 28, lineHeight: 30 }, stateLine: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#eaf3ed' }, statusDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#ad5c00' }, statusDotPurchased: { backgroundColor: '#22634b' }, stateText: { color: '#22634b', fontSize: 14, fontWeight: '700' }, infoRow: { gap: 3, paddingVertical: 4 }, infoLabel: { color: '#596b62', fontSize: 13, fontWeight: '600' }, infoValue: { color: '#193b2e', fontSize: 16, lineHeight: 22 }, inventoryLink: { minHeight: 44, justifyContent: 'center' }, inventoryLinkText: { color: '#22634b', fontSize: 15, fontWeight: '700', textDecorationLine: 'underline' }, modalActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 },
   matchLink: { minHeight: 44, paddingVertical: 10, color: '#22634b', fontSize: 16, fontWeight: '600', textDecorationLine: 'underline' },
 });

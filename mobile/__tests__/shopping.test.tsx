@@ -125,3 +125,17 @@ test('matching inventory is shown before allowing a separate transfer', async ()
   await screen.findByLabelText('Confirm separate inventory item');
   expect(screen.getByLabelText('Confirm separate inventory item').props.value).toBe(false); client.clear();
 });
+
+test('canceling the transfer sheet leaves the purchase intact without creating inventory', async () => {
+  items = [{ ...base, status: 'Purchased', version: 'v2' }];
+  const client = await setup();
+  await fireEvent.press(await screen.findByRole('button', { name: 'Show purchased items' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Options for Milk' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Add to inventory' }));
+  expect(await screen.findByLabelText('Product name')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByLabelText('Product name')).toBeNull();
+  expect(screen.getByRole('checkbox', { name: 'Uncheck Milk' })).toBeTruthy();
+  expect(jest.mocked(api).mock.calls.some(([url]) => url.endsWith('/transfer-to-inventory'))).toBe(false);
+  client.clear();
+});

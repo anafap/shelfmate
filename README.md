@@ -90,3 +90,7 @@ See [phone installation instructions](docs/mobile-installation.md) for Expo Go, 
 ## Household membership upgrade
 
 Households have no fixed member cap; each account still belongs to one household and only owners manage invitations. Apply the new EF migration and deploy the matching API before distributing the updated mobile build. The migration preserves existing memberships and shared records. Older apps still disable invitations at two members until updated. A database downgrade is blocked when any household has more than two members; it never removes members automatically.
+
+## UI refinement
+
+The current UI preserves the established Home and Inventory layout and aligns Shopping transfer, Alerts, reminder preferences, settings, sign-in, and household setup with it. See [the UI baseline and verification record](docs/ui-design.md) for changes and remaining device checks. Mobile lint, type checks, 96 tests, and iOS/Android/web exports pass; native visual review and a signed build of this revision remain pending.

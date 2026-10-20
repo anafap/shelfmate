@@ -6,7 +6,7 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { DateField } from '@/components/DateField';
 import { Action, Field, styles } from '@/features/auth/AccountScreen';
 import { api, ApiError } from '@/lib/session';
-import { Category, InventoryItem, expiryTone, inventoryPath } from './types';
+import { Category, InventoryItem, expiryLabel, expiryTone, inventoryPath } from './types';
 
 export function Choices({ label, values, selected, onSelect, disabled }: {
   label: string; values: { value: string; label: string }[]; selected: string; onSelect: (value: string) => void; disabled?: boolean;
@@ -37,20 +37,6 @@ function EditorButton({ title, accessibilityLabel, onPress, disabled, variant = 
   return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? title} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [ui.editorButton, variant === 'secondary' && ui.editorButtonSecondary, pressed && ui.editorButtonPressed, disabled && ui.editorButtonDisabled]}>
     <Text style={[ui.editorButtonText, variant === 'secondary' && ui.editorButtonTextSecondary]}>{title}</Text>
   </Pressable>;
-}
-
-function summaryExpiry(item: InventoryItem) {
-  if (item.status !== 'Active') return item.status;
-  if (item.expiryStatus === 'Unknown') return 'Expiry unknown';
-  if (item.expiryStatus === 'Expired') {
-    const days = item.daysRemaining === null ? null : Math.abs(item.daysRemaining);
-    const label = days === 1 ? 'yesterday' : days === null ? '' : `${days} days ago`;
-    return label ? `Expired ${label}` : 'Expired · review item';
-  }
-  if (item.daysRemaining === 0) return 'Expires today';
-  if (item.daysRemaining === 1) return 'Expires tomorrow';
-  if (item.expiryStatus === 'ExpiringSoon' && item.daysRemaining !== null) return `Expires in ${item.daysRemaining} days`;
-  return 'In stock';
 }
 
 function dateValue(text: string, label: string): string | null {
@@ -122,7 +108,7 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
         <View style={ui.summaryCopy}>
           <Text numberOfLines={1} style={ui.summaryName}>{item.name}</Text>
           <Text numberOfLines={1} style={ui.summaryMeta}>{selectedCategory} · {location || 'Location not set'}</Text>
-          <View style={ui.summaryExpiryRow}><Text style={[ui.summaryBadge, ui[`summaryBadge_${expiryTone(item)}`]]}>{summaryExpiry(item)}</Text>{item.expiryDate && <Text style={ui.summaryDate}>{item.expiryType} · {item.expiryDate}</Text>}</View>
+          <View style={ui.summaryExpiryRow}><Text style={[ui.summaryBadge, ui[`summaryBadge_${expiryTone(item)}`]]}>{expiryLabel(item)}</Text>{item.expiryDate && <Text style={ui.summaryDate}>{item.expiryType} · {item.expiryDate}</Text>}</View>
         </View>
       </View>}
       <ScrollView style={ui.editorScroll} contentContainerStyle={ui.editorFields} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
@@ -172,10 +158,10 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
 
 const ui = StyleSheet.create({
   editorRoot: { flex: 1 }, editorScreen: { flex: 1, gap: 12, paddingHorizontal: 16, paddingTop: 6 },
-  editorHeader: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 10 }, editorBack: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }, editorTitle: { color: '#102d24', fontSize: 24, fontWeight: '800' },
+  editorHeader: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 10 }, editorBack: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }, editorTitle: { color: '#102d24', fontSize: 24, fontWeight: '800' },
   summary: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: '#e0e8e2', backgroundColor: '#fff' }, summary_red: { borderColor: '#f0d7d4', backgroundColor: '#fff7f5' }, summary_orange: { borderColor: '#f1ddca', backgroundColor: '#fff9f3' }, summary_amber: { borderColor: '#efe2c8', backgroundColor: '#fffbf2' }, summary_green: { borderColor: '#dce9df', backgroundColor: '#fbfdfb' }, summary_neutral: { borderColor: '#e0e8e2', backgroundColor: '#fff' },
   summaryIcon: { width: 52, height: 52, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#eaf6ed' }, summaryCopy: { flex: 1, minWidth: 0, gap: 4 }, summaryName: { color: '#102d24', fontSize: 18, fontWeight: '800' }, summaryMeta: { color: '#52665a', fontSize: 14 }, summaryExpiryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }, summaryBadge: { overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 14, color: '#52665a', backgroundColor: '#eff3f2', fontSize: 12, fontWeight: '700' }, summaryBadge_red: { color: '#9c2727', backgroundColor: '#ffe9e7' }, summaryBadge_orange: { color: '#a94d00', backgroundColor: '#fff0e3' }, summaryBadge_amber: { color: '#85520c', backgroundColor: '#fff4dc' }, summaryBadge_green: { color: '#22634b', backgroundColor: '#edf7ef' }, summaryBadge_neutral: { color: '#52665a', backgroundColor: '#eff3f2' }, summaryDate: { color: '#52665a', fontSize: 12 },
-  editorScroll: { flex: 1 }, editorFields: { gap: 14, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: '#e0e8e2', backgroundColor: '#fff' }, editorInput: { minHeight: 48, borderRadius: 12, borderColor: '#d5ded8', backgroundColor: '#fff', paddingVertical: 12, fontSize: 15 }, fieldRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, fieldColumn: { flex: 1, minWidth: 0 }, fieldLabel: { color: '#52665a', fontSize: 14, lineHeight: 21 }, selectField: { gap: 6 }, selectButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: '#d5ded8', borderRadius: 12, backgroundColor: '#fff' }, selectValue: { flex: 1, color: '#193b2e', fontSize: 15 }, selectOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, selectOption: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#dce6df', backgroundColor: '#fff' }, selectOptionSelected: { borderColor: '#22634b', backgroundColor: '#eaf6ed' }, selectOptionText: { color: '#52665a', fontSize: 13 }, selectOptionTextSelected: { color: '#22634b', fontWeight: '700' },
+  editorScroll: { flex: 1 }, editorFields: { gap: 14, padding: 14, borderRadius: 18, borderWidth: 1, borderColor: '#e0e8e2', backgroundColor: '#fff' }, editorInput: { minHeight: 48, borderRadius: 12, borderColor: '#d5ded8', backgroundColor: '#fff', paddingVertical: 12, fontSize: 15 }, fieldRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, fieldColumn: { flex: 1, minWidth: 0 }, fieldLabel: { color: '#52665a', fontSize: 14, lineHeight: 21 }, selectField: { gap: 6 }, selectButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: '#d5ded8', borderRadius: 12, backgroundColor: '#fff' }, selectValue: { flex: 1, color: '#193b2e', fontSize: 15 }, selectOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, selectOption: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#dce6df', backgroundColor: '#fff' }, selectOptionSelected: { borderColor: '#22634b', backgroundColor: '#eaf6ed' }, selectOptionText: { color: '#52665a', fontSize: 13 }, selectOptionTextSelected: { color: '#22634b', fontWeight: '700' },
   reminderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 4 }, reminderCopy: { flex: 1, gap: 3 }, reminderTitle: { color: '#193b2e', fontSize: 14, fontWeight: '700' }, reminderDescription: { color: '#52665a', fontSize: 12, lineHeight: 17 },
   editorFooter: { paddingTop: 10, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: '#e0e8e2', backgroundColor: '#f5f7f5' }, footerButtons: { flexDirection: 'row', gap: 10 }, editorButton: { flex: 1, minHeight: 54, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderRadius: 14, backgroundColor: '#22634b' }, editorButtonSecondary: { borderWidth: 1, borderColor: '#d6e2da', backgroundColor: '#fff' }, editorButtonPressed: { opacity: 0.82 }, editorButtonDisabled: { opacity: 0.5 }, editorButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' }, editorButtonTextSecondary: { color: '#22634b' },
 });

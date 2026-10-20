@@ -1,3 +1,4 @@
+import { colors } from '@/theme/tokens';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useContext } from 'react';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
@@ -21,7 +22,7 @@ export function FoundationScreen({ title, description, children, compact = false
   );
 }
 const styles = StyleSheet.create({
-  background: { backgroundColor: '#f5f7f5' },
+  background: { backgroundColor: colors.background },
   fill: { flex: 1 },
   page: { flexGrow: 1, alignItems: 'center' },
   content: { width: '100%', maxWidth: 1120, gap: 24, paddingBottom: 24 },

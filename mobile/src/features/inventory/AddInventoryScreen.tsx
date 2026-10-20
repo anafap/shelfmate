@@ -17,7 +17,7 @@ export default function AddInventoryScreen() {
     navigation.setOptions({ tabBarStyle: { display: 'none' } });
     return () => navigation.setOptions({ tabBarStyle: undefined });
   }, [navigation]);
-  return <FoundationScreen title="Add to Inventory" description="Add a product to your shared household inventory." compact>
+  return <FoundationScreen title="Add to Inventory" description="Add a product to your shared household inventory." compact hideHeading topPadding={8}>
     <View style={ui.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to Inventory" onPress={() => router.replace('/inventory')} style={ui.back}><SymbolView name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} tintColor="#193b2e" size={21} /></Pressable><Text accessibilityRole="header" style={ui.title}>Add to Inventory</Text></View>
     {!household.data && (household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : <Text style={styles.body}>Create or join a household before adding inventory.</Text>)}
     {categories.isPending && <ActivityIndicator accessibilityLabel="Loading categories" />}

@@ -303,7 +303,7 @@ test('history and sorting are available through more filters, and clear restores
   await fireEvent.press(screen.getByRole('button', { name: 'Sort: Nearest expiry' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Sort option: Name (A–Z)' }));
   await waitFor(() => expect(jest.mocked(api).mock.calls.some(([path]) => path.includes('status=Consumed') && path.includes('sort=name'))).toBe(true));
-  expect(screen.getByRole('button', { name: 'Clear filters' }).props.style).toEqual(expect.objectContaining({ minHeight: 24 }));
+  expect(screen.getByRole('button', { name: 'Clear filters' }).props.style).toEqual(expect.objectContaining({ minHeight: 48 }));
   await fireEvent.press(screen.getByRole('button', { name: 'Clear filters' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Status: Active' })).toBeTruthy());
   expect(screen.getByRole('button', { name: 'Sort: Nearest expiry' })).toBeTruthy();

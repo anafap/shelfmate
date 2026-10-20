@@ -18,12 +18,26 @@ export function expiryTone(item: InventoryItem): ExpiryTone {
   if (item.expiryStatus === 'OK') return 'green';
   return 'neutral';
 }
+/** Presentation only: urgency and day counts remain authoritative server values. */
 export function expiryLabel(item: InventoryItem) {
   if (item.status !== 'Active') return item.status;
-  if (item.expiryStatus === 'Unknown') return 'Expiry unknown';
+  if (!item.expiryDate || item.expiryStatus === 'Unknown') return 'Expiry unknown';
   const estimated = item.expiryType === 'Estimated';
-  if (item.expiryStatus === 'Expired') return estimated ? 'Estimated date passed · review item' : 'Expired · review item';
-  if (item.daysRemaining === 0) return estimated ? 'Estimated date today · review item' : 'Expiry date today · review item';
-  if (item.expiryStatus === 'ExpiringSoon') return `${estimated ? 'Estimated date approaching' : 'Expiring soon'} · ${item.daysRemaining} day(s) remaining`;
-  return 'OK · beyond your alert window';
+  if (item.expiryStatus === 'Expired') {
+    const days = item.daysRemaining === null ? null : -item.daysRemaining;
+    const ago = days === 1 ? 'yesterday' : days !== null && days > 0 ? `${days} days ago` : '· review item';
+    return `${estimated ? 'Estimated date passed' : 'Expired'} ${ago}`;
+  }
+  if (item.daysRemaining === 0) return estimated ? 'Estimated date is today' : 'Expires today';
+  if (item.expiryStatus === 'ExpiringSoon' && item.daysRemaining !== null) {
+    const when = item.daysRemaining === 1 ? 'tomorrow' : `in ${item.daysRemaining} days`;
+    return `${estimated ? 'Estimated date' : 'Expires'} ${when}`;
+  }
+  return estimated ? 'Estimated date beyond alert window' : 'In stock';
+}
+
+export function formatProductDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(year, month - 1, day)));
 }

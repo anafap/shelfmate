@@ -85,10 +85,24 @@ test.each([2, 4])('owner can invite another member when household already has %i
     return { id: 'invite', token: 'new-member-code', expiresAt: '2099-01-01' } as never;
   });
   const client = await setup();
-  expect(await screen.findByText(`Person ${count - 1} · Member`)).toBeTruthy();
+  expect(await screen.findByText(`Person ${count - 1}`)).toBeTruthy();
   await fireEvent.changeText(screen.getByLabelText('Member email (optional)'), 'housemate@example.com');
   await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
   expect(await screen.findByText('new-member-code')).toBeTruthy();
   expect(api).toHaveBeenCalledWith('/households/current/invites', { invitedEmail: 'housemate@example.com' }, 'POST');
+  client.clear();
+});
+test('member settings show the household without invitation management', async () => {
+  jest.mocked(api).mockImplementation(async path => {
+    if (path === '/households/current') return { ...household, ownerUserId: 'another-owner' } as never;
+    if (path === '/households/current/members') return [{ userId: 'owner', displayName: 'Ana', role: 'Member' }] as never;
+    return [] as never;
+  });
+  const client = await setup();
+  expect(await screen.findByText('Our home')).toBeTruthy();
+  expect(screen.getByText('Member')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Create invitation' })).toBeNull();
+  expect(api).not.toHaveBeenCalledWith('/households/current/invites');
+  expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
   client.clear();
 });

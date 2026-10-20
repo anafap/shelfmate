@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { ActivityIndicator, Platform, Share, Text, View } from 'react-native';
+import { PageHeader, pageUi } from '@/components/PageHeader';
 import { FoundationScreen } from '@/components/FoundationScreen';
 import { api, ApiError, signOut } from '@/lib/session';
 import { Action, Field, styles } from './AccountScreen';
@@ -37,9 +38,14 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
     await queryClient.invalidateQueries({ queryKey: ['invites'] });
   }});
   function run(task: () => Promise<unknown>) { setMessage(''); action.mutate(task); }
-  return <FoundationScreen title={settings ? 'Account & household' : household.data?.name ?? 'Set up your household'} description={settings ? `Manage your account and the people in your home. Signed in as ${session?.user.displayName ?? ''}.` : household.data ? `Welcome back, ${session?.user.displayName ?? 'housemate'}. Let’s see what’s at home.` : 'Start a home together, or join one with an invitation code.'} safeAreaTop={safeAreaTop}>
-    <View style={styles.card}>
-      {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry" onPress={() => { household.refetch(); }} /></> : !household.data ? <>
+  return <FoundationScreen title={settings ? 'Settings' : 'Your household'} description="" hideHeading compact fill topPadding={safeAreaTop ? undefined : 8} safeAreaTop={safeAreaTop}>
+    <PageHeader title={settings ? 'Settings' : household.data ? 'Your household' : 'Set up your home'} onBack={settings ? () => router.replace('/') : undefined} backLabel="Back to Home" />
+    {settings && <View style={pageUi.panel}>
+      <Text accessibilityRole="header" style={pageUi.sectionTitle}>Account</Text>
+      <Text style={styles.heading}>{session?.user.displayName}</Text>
+      <Text selectable style={pageUi.body}>{session?.user.email}</Text>
+    </View>}
+    {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={pageUi.panel}><Text accessibilityRole="alert" style={styles.error}>{household.error.message}</Text><Action title="Retry" onPress={() => { household.refetch(); }} /></View> : !household.data ? <View style={pageUi.panel}>
         <Text style={styles.heading}>Create a household</Text>
         <Field label="Household name" value={name} onChangeText={setName} maxLength={80} />
         <Field label="Household time zone" value={zone} onChangeText={setZone} autoCapitalize="none" />
@@ -48,27 +54,34 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
         <Text style={styles.heading}>Or join a household</Text>
         <Field label="Invitation code" value={token} onChangeText={setToken} autoCapitalize="none" maxLength={64} />
         <Action title="Join household" disabled={action.isPending} onPress={() => run(() => api('/household-invites/redeem', { token: token.trim() }, 'POST'))} />
-      </> : <>
+
+    </View> : <>
+      <View style={pageUi.panel}>
+        <Text accessibilityRole="header" style={pageUi.sectionTitle}>Household</Text>
         <Text style={styles.heading}>{household.data.name}</Text>
-        <Text style={styles.body}>Time zone: {household.data.timeZone}</Text>
-        {members.isPending ? <ActivityIndicator /> : members.isError ? <><Text style={styles.error}>{members.error.message}</Text><Action title="Retry members" onPress={() => { members.refetch(); }} /></> : members.data?.map(m => <Text key={m.userId} style={styles.body}>{m.displayName} · {m.role}</Text>)}
-        {!settings && members.data?.length === 1 && <Text style={styles.body}>Your household is ready. Invite household members from Settings.</Text>}
-        {!settings && <View style={{ gap: 16, padding: 24, borderRadius: 16, backgroundColor: '#edf5ef' }}>
-          <Text style={styles.heading}>Know what’s on your shelf</Text>
-          <Text style={styles.body}>Add products, find what you need, and review the dates you’ve entered. Your shared inventory starts here.</Text>
-          <Link href="/inventory" style={{ color: '#22634b', fontSize: 16, fontWeight: '700', minHeight: 48, paddingVertical: 14 }}>Open inventory →</Link>
-        </View>}
-        {settings && owner && <>
+        <Text style={pageUi.body}>Time zone: {household.data.timeZone}</Text>
+        <Link href={{ pathname: '/reminder-preferences', params: { from: settings ? 'settings' : 'alerts' } }} style={{ color: '#22634b', fontSize: 15, fontWeight: '600', minHeight: 48, paddingVertical: 14 }}>Reminder preferences →</Link>
+      </View>
+      <View style={pageUi.panel}>
+        <Text accessibilityRole="header" style={pageUi.sectionTitle}>Members{members.data ? ` · ${members.data.length}` : ''}</Text>
+        {members.isPending ? <ActivityIndicator accessibilityLabel="Loading members" /> : members.isError ? <><Text style={styles.error}>{members.error.message}</Text><Action title="Retry members" onPress={() => { members.refetch(); }} /></> : members.data?.map(m => <View key={m.userId} style={pageUi.row}>
+          <View style={pageUi.copy}><Text style={pageUi.sectionTitle}>{m.displayName}</Text>{m.userId === session?.user.id && <Text style={pageUi.caption}>You</Text>}</View>
+          <Text style={{ color: '#22634b', backgroundColor: '#edf5ef', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, fontWeight: '600' }}>{m.role}</Text>
+        </View>)}
+        {members.data?.length === 1 && <Text style={pageUi.body}>Your household is ready. Invite household members from Settings.</Text>}
+      </View>
+        {settings && owner && <View style={pageUi.panel}>
+          <Text accessibilityRole="header" style={pageUi.sectionTitle}>Invitations</Text>
           {invites.isError && <><Text style={styles.error}>{invites.error.message}</Text><Action title="Retry invitations" onPress={() => { invites.refetch(); }} /></>}
           {activeInvites.length > 0 && <>
-            <Text style={styles.heading}>Active invitations</Text>
+            <Text style={pageUi.sectionTitle}>Active invitations</Text>
             {activeInvites.map(i => <View key={i.id} style={{ gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#dce6df' }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                 <Text style={[styles.body, { flexGrow: 1, flexShrink: 1 }]}>For {i.invitedEmail ?? 'a household member'} · expires {new Date(i.expiresAt).toLocaleDateString()}</Text>
                 {revokeId !== i.id && <Action variant="danger" title="Revoke" label={`Revoke invitation for ${i.invitedEmail ?? 'a household member'}`} disabled={action.isPending} onPress={() => setRevokeId(i.id)} />}
               </View>
               {revokeId === i.id && <>
-                <Text style={styles.body}>Revoke this invitation? Its code will stop working.</Text>
+                <Text style={pageUi.body}>Revoke this invitation? Its code will stop working.</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   <Action variant="danger" title="Confirm revocation" disabled={action.isPending} onPress={() => run(async () => { await api(`/households/current/invites/${i.id}`, undefined, 'DELETE'); if (invite?.id === i.id) setInvite(null); setRevokeId(null); setMessage('Invitation revoked.'); })} />
                   <Action variant="secondary" title="Keep invitation" disabled={action.isPending} onPress={() => setRevokeId(null)} />
@@ -76,23 +89,28 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
               </>}
             </View>)}
           </>}
-          <Text style={styles.heading}>Invite a household member</Text>
+          <Text style={pageUi.sectionTitle}>Invite a household member</Text>
           <Field label="Member email (optional)" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" maxLength={254} />
-          <Action title="Create invitation" disabled={action.isPending} onPress={() => run(async () => { const result = await api<Invite>('/households/current/invites', { invitedEmail: email || null }, 'POST'); setInvite(result); })} />
+          <Action title="Create invitation" disabled={action.isPending} onPress={() => run(async () => { const result = await api<Invite>('/households/current/invites', { invitedEmail: email.trim() || null }, 'POST'); setInvite(result); })} />
           {invite && <>
-            <Text style={styles.body}>Share this code privately. It can be used once, before {new Date(invite.expiresAt).toLocaleString()}.</Text>
-            <Text selectable style={styles.body}>{invite.token}</Text>
+            <Text style={pageUi.body}>Share this code privately. It can be used once, before {new Date(invite.expiresAt).toLocaleString()}.</Text>
+            <Text selectable style={[pageUi.body, { padding: 12, borderRadius: 10, backgroundColor: '#edf5ef' }]}>{invite.token}</Text>
             {Platform.OS !== 'web' || (typeof navigator !== 'undefined' && typeof navigator.share === 'function')
               ? <Action title="Share invitation code" onPress={() => run(async () => { await Share.share({ message: `Join my ShelfMate household. Sign in with your own account and enter this invitation code: ${invite.token}` }); })} />
-              : <Text style={styles.body}>Select and copy the code above to share it privately.</Text>}
+              : <Text style={pageUi.body}>Select and copy the code above to share it privately.</Text>}
           </>}
-        </>}
-        <Action variant="secondary" title="Refresh household" disabled={action.isPending} onPress={() => run(async () => { await household.refetch(); await members.refetch(); })} />
-      </>}
-      {action.isPending && <ActivityIndicator accessibilityLabel="Saving" />}
-      {action.isError && <Text accessibilityRole="alert" style={styles.error}>{action.error.message}</Text>}
-      {!!message && <Text accessibilityLiveRegion="polite" style={styles.body}>{message}</Text>}
-      {settings && <Action variant="secondary" title="Sign out" disabled={action.isPending} onPress={() => run(signOut)} />}
-    </View>
+        </View>}
+
+      {!settings && <View style={pageUi.panel}>
+        <Text style={pageUi.sectionTitle}>Know what’s on your shelf</Text>
+        <Text style={pageUi.body}>Add your first product to start your shared inventory.</Text>
+        <Link href="/inventory" style={{ color: '#22634b', fontSize: 16, fontWeight: '700', minHeight: 48, paddingVertical: 14 }}>Open inventory →</Link>
+      </View>}
+      <Action variant="secondary" title="Refresh household" disabled={action.isPending} onPress={() => run(async () => { await household.refetch(); await members.refetch(); if (settings && owner) await invites.refetch(); })} />
+    </>}
+    {action.isPending && <ActivityIndicator accessibilityLabel="Saving" />}
+    {action.isError && <Text accessibilityRole="alert" style={styles.error}>{action.error.message}</Text>}
+    {!!message && <Text accessibilityLiveRegion="polite" style={pageUi.success}>{message}</Text>}
+    {settings && <View style={pageUi.panel}><Action variant="secondary" title="Sign out" disabled={action.isPending} onPress={() => run(signOut)} /></View>}
   </FoundationScreen>;
 }

@@ -1,3 +1,4 @@
+import { invalidateResource } from '@/lib/invalidateResource';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useNavigation } from 'expo-router';
 import { useEffect } from 'react';
@@ -18,8 +19,7 @@ export default function AddInventoryScreen() {
     return () => navigation.setOptions({ tabBarStyle: undefined });
   }, [navigation]);
   if (household.data && categories.data?.length) return <InventoryForm layout="editor" item={null} categories={categories.data} onCancel={() => router.replace('/inventory')} onReload={() => {}} onSaved={async () => {
-    await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] });
-    await client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] });
+    await invalidateResource(client, 'inventory', household.data?.id);
     router.replace('/inventory');
   }} />;
   return <FoundationScreen title="Add to Inventory" description="" compact hideHeading fill topPadding={8}>

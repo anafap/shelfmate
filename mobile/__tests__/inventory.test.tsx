@@ -315,3 +315,40 @@ test('history and sorting are available through more filters, and clear restores
   expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
   client.clear();
 });
+
+test('changing product routes after conflict reload edits only the newly selected product', async () => {
+  mockRouteParams = { itemId: 'milk' };
+  const rice = { ...milk, id: 'rice', name: 'Rice', version: 'rice-v1' };
+  let latest = milk;
+  jest.mocked(api).mockImplementation(async (path, body, method) => {
+    if (method === 'PATCH' && path.endsWith('/milk')) { latest = { ...milk, name: 'Latest milk', version: 'v2' }; throw new ApiError(409, 'Changed'); }
+    if (path === `${inventoryPath}/milk`) return latest as never;
+    if (path === `${inventoryPath}/rice`) return rice as never;
+    return defaultApi(path);
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+  const result = await render(<QueryClientProvider client={client}><EditInventoryScreen /></QueryClientProvider>);
+  await screen.findByLabelText('Product name');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save Changes' }));
+  await fireEvent.press(await screen.findByRole('button', { name: 'Reload latest details' }));
+  await waitFor(() => expect(screen.getByLabelText('Product name').props.value).toBe('Latest milk'));
+  mockRouteParams = { itemId: 'rice' };
+  await result.rerender(<QueryClientProvider client={client}><EditInventoryScreen /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByLabelText('Product name').props.value).toBe('Rice'));
+  await fireEvent.press(screen.getByRole('button', { name: 'Save Changes' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/rice`, expect.objectContaining({ name: 'Rice', version: 'rice-v1' }), 'PATCH'));
+  client.clear();
+});
+
+test('background product refetch preserves the draft and its reviewed concurrency version', async () => {
+  mockRouteParams = { itemId: 'milk' };
+  const client = await setupEditor();
+  await fireEvent.changeText(await screen.findByLabelText('Product name'), 'My unsaved draft');
+  jest.mocked(api).mockImplementation(async path => path === `${inventoryPath}/milk` ? { ...milk, name: 'Partner edit', version: 'v2' } as never : defaultApi(path));
+  await client.invalidateQueries({ queryKey: ['inventory-item', 'home', 'milk'] });
+  await waitFor(() => expect(client.getQueryData<InventoryItem>(['inventory-item', 'home', 'milk'])?.version).toBe('v2'));
+  expect(screen.getByLabelText('Product name').props.value).toBe('My unsaved draft');
+  await fireEvent.press(screen.getByRole('button', { name: 'Save Changes' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk`, expect.objectContaining({ name: 'My unsaved draft', version: 'v1' }), 'PATCH'));
+  client.clear();
+});

@@ -1,3 +1,4 @@
+import { invalidateResource } from '@/lib/invalidateResource';
 import { FoundationScreen } from '@/components/FoundationScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -14,7 +15,6 @@ export default function EditInventoryScreen() {
   const client = useQueryClient();
   const navigation = useNavigation();
   const { itemId } = useLocalSearchParams<{ itemId?: string }>();
-  const [latestItem, setLatestItem] = useState<InventoryItem | null>(null);
   useEffect(() => {
     navigation.setOptions({ tabBarStyle: { display: 'none' } });
     return () => navigation.setOptions({ tabBarStyle: undefined });
@@ -38,7 +38,7 @@ export default function EditInventoryScreen() {
     </FoundationScreen>;
   }
 
-  const item = latestItem ?? product.data;
+  const item = product.data;
   if (!household.data && household.isPending) return state(<View><ActivityIndicator accessibilityLabel="Loading household" /></View>);
   if (household.isError) return state(<View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{household.error.message}</Text><Action title="Back to Inventory" onPress={returnToInventory} /></View>);
   if (!household.data) return state(<View style={styles.card}><Text style={styles.body}>Create or join a household before editing inventory.</Text><Action title="Back to Inventory" onPress={returnToInventory} /></View>);
@@ -49,18 +49,24 @@ export default function EditInventoryScreen() {
   if (!item || !categories.data) return null;
 
   const householdId = household.data.id;
-  return <InventoryForm
-    key={item.version}
+  return <ProductEditor
+    key={`${householdId}:${item.id}`}
     item={item}
     categories={categories.data}
     layout="editor"
     saveLabel="Save Changes"
     onCancel={returnToInventory}
-    onReload={setLatestItem}
+    onReload={() => {}}
     onSaved={async () => {
-      await client.invalidateQueries({ queryKey: ['inventory', householdId] });
-      await client.invalidateQueries({ queryKey: ['dashboard', householdId] });
+      await invalidateResource(client, 'inventory', householdId);
       returnToInventory();
     }}
   />;
+}
+
+// Keep the reviewed record/version with its draft until an explicit conflict reload.
+// Background refetches must not replace unsaved fields or silently advance their version.
+function ProductEditor(props: React.ComponentProps<typeof InventoryForm>) {
+  const [item, setItem] = useState(props.item!);
+  return <InventoryForm {...props} key={item.version} item={item} onReload={setItem} />;
 }

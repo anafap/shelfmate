@@ -1,3 +1,4 @@
+import { invalidateResource } from '@/lib/invalidateResource';
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -13,10 +14,8 @@ export function useLiveUpdates(userId?: string) {
     if (!userId || !householdId) return;
     const setStatus = (status: string) => setConnectionState({ householdId, userId, status });
     let stopped = false; let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    const keys = ['household', 'members', 'invites', 'categories', 'inventory', 'shopping', 'dashboard', 'alerts', 'preferences'];
     function refetch(resource?: string) {
-      const affected = resource === 'inventory' ? ['inventory', 'dashboard', 'alerts'] : resource === 'shopping' ? ['shopping', 'inventory', 'dashboard'] : keys;
-      affected.forEach(key => { client.invalidateQueries({ queryKey: [key] }); });
+      void invalidateResource(client, resource, householdId);
     }
     const base = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
     if (!base) return;

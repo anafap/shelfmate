@@ -1,3 +1,4 @@
+import { invalidateResource } from '@/lib/invalidateResource';
 import { colors } from '@/theme/tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, router, useLocalSearchParams } from 'expo-router';
@@ -42,8 +43,7 @@ export default function InventoryScreen() {
     await api(`${inventoryPath}/${transition.item.id}/${transition.action}`, { version: transition.item.version }, 'POST');
   }, onSuccess: async () => {
     setTransition(null); setMessage('Item moved to history.');
-    await client.invalidateQueries({ queryKey: ['inventory', household.data?.id] });
-    await client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] });
+    await invalidateResource(client, 'inventory', household.data?.id);
   }});
   function filter(setter: (value: string) => void, value: string) { setter(value); setPage(1); }
   const conflict = lifecycle.error instanceof ApiError && lifecycle.error.status === 409;

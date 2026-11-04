@@ -1,3 +1,4 @@
+import { invalidateResource } from '@/lib/invalidateResource';
 import { PageHeader } from '@/components/PageHeader';
 import { colors } from '@/theme/tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -34,7 +35,7 @@ export default function ShoppingScreen() {
     do { const result = await api<InventoryPage>(`${inventoryPath}?status=Active&search=${encodeURIComponent(transferName.trim())}&sort=name&page=${page}&pageSize=100`); found.push(...result.items.filter(item => item.name.trim().toLowerCase() === transferName.trim().toLowerCase())); total = result.total; page++; } while ((page - 1) * 100 < total);
     return found;
   } });
-  async function refresh() { await Promise.all(['shopping', 'dashboard', 'inventory'].map(key => client.invalidateQueries({ queryKey: [key, household.data?.id] }))); }
+  async function refresh() { await invalidateResource(client, 'shopping', household.data?.id); }
   const action = useMutation({ mutationFn: (task: () => Promise<unknown>) => task(), onSuccess: refresh });
   const save = useMutation({ mutationFn: async () => {
     const trimmed = name.trim(); if (!trimmed) throw new Error('Enter a shopping item name.');

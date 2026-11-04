@@ -31,3 +31,16 @@ test('resource events and reconnect refetch visible records; logout stops the co
   expect(mockConnection.stop).toHaveBeenCalled();
   client.clear();
 });
+
+test.each(['inventory', 'shopping', undefined])('%s changes invalidate editors, alerts, and duplicate checks', async resource => {
+  process.env.EXPO_PUBLIC_API_URL = 'http://localhost:5050';
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
+  const result = await render(<QueryClientProvider client={client}><Client userId="owner" /></QueryClientProvider>);
+  await screen.findByText('Shared updates connected');
+  for (const key of ['inventory-item', 'alerts', 'transferMatches']) client.setQueryData([key, 'home', 'milk'], 'previous data');
+  client.setQueryData(['alerts', 'another-household'], 'private data');
+  await act(async () => { mockHandlers.ResourceChanged({ resource: resource as string }); });
+  for (const key of ['inventory-item', 'alerts', 'transferMatches']) expect(client.getQueryState([key, 'home', 'milk'])?.isInvalidated).toBe(true);
+  expect(client.getQueryState(['alerts', 'another-household'])?.isInvalidated).toBe(false);
+  await result.unmount(); client.clear();
+});

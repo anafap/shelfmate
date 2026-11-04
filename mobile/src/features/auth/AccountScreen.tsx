@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '@/theme/tokens';
+import { controlUi } from '@/theme/controlStyles';
 import { PageHeader, pageUi } from '@/components/PageHeader';
 import { FoundationScreen } from '@/components/FoundationScreen';
 import { signIn } from '@/lib/session';
@@ -34,21 +35,21 @@ export function AccountScreen() {
   </FoundationScreen></KeyboardAvoidingView>;
 }
 export function Field({ label, ...props }: React.ComponentProps<typeof TextInput> & { label: string }) {
-  return <View style={{ gap: 6 }}><Text style={styles.body}>{label}</Text><TextInput accessibilityLabel={label} style={styles.input} placeholderTextColor="#596b62" {...props} /></View>;
+  return <View style={controlUi.field}><Text style={controlUi.label}>{label}</Text><TextInput accessibilityLabel={label} style={styles.input} placeholderTextColor={colors.muted} {...props} /></View>;
 }
 export function Action({ title, onPress, disabled, variant = 'primary', label, fullWidth }: { title: string; onPress: () => void; disabled?: boolean; variant?: 'primary' | 'secondary' | 'danger'; label?: string; fullWidth?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label ?? title} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.button, fullWidth && { alignSelf: 'stretch' }, variant === 'secondary' && styles.secondaryButton, variant === 'danger' && styles.dangerButton, pressed && { opacity: 0.8 }, disabled && { opacity: 0.45 }]}><Text style={[styles.buttonText, variant === 'secondary' && styles.secondaryText, variant === 'danger' && styles.dangerText]}>{title}</Text></Pressable>;
 }
 export const styles = StyleSheet.create({
-  card: { backgroundColor: '#fff', padding: 24, borderRadius: 20, gap: 16, borderWidth: 1, borderColor: '#e0e8e2' },
-  heading: { fontSize: 22, fontWeight: '600', color: '#193b2e' },
-  body: { fontSize: 15, lineHeight: 23, color: '#52665a' },
-  input: { borderWidth: 1, borderColor: '#b5c5ba', backgroundColor: '#fbfcfb', borderRadius: 10, padding: 14, minHeight: 50, fontSize: 16, color: '#193b2e' },
-  button: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10, backgroundColor: '#22634b', alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  card: { ...pageUi.panel },
+  heading: { ...pageUi.sectionTitle },
+  body: { ...pageUi.body },
+  input: { ...controlUi.frame, ...controlUi.value },
+  button: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { color: colors.surface, fontSize: 15, fontWeight: '600' },
   secondaryButton: { backgroundColor: '#f0f5f1', borderWidth: 1, borderColor: '#dce6df' },
-  secondaryText: { color: '#22634b' },
+  secondaryText: { color: colors.green },
   dangerButton: { backgroundColor: '#fff4f1', borderWidth: 1, borderColor: '#f0d4ce' },
-  dangerText: { color: '#9c2727' },
-  error: { color: '#9c2727', fontSize: 15, lineHeight: 24 },
+  dangerText: { color: colors.danger },
+  error: { color: colors.danger, fontSize: 15, lineHeight: 24 },
 });

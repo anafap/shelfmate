@@ -1,3 +1,4 @@
+import { controlUi } from '@/theme/controlStyles';
 import NativeTimePicker from '@expo/ui/community/datetime-picker';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -22,8 +23,7 @@ export function TimeField({ label, value, onChange, disabled }: Props) {
 }
 
 const styles = StyleSheet.create({
-  field: { gap: 6 }, label: { fontSize: 15, lineHeight: 23, color: '#52665a' },
-  trigger: { minHeight: 50, borderWidth: 1, borderColor: '#b5c5ba', backgroundColor: '#fbfcfb', borderRadius: 10, padding: 14, justifyContent: 'center' },
-  value: { fontSize: 16, color: '#193b2e' }, done: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
-  doneText: { color: '#22634b', fontSize: 15, fontWeight: '600' },
+  field: controlUi.field, label: controlUi.label, trigger: { ...controlUi.frame, justifyContent: 'center' },
+  value: controlUi.value, done: { alignSelf: 'flex-end', minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
+  doneText: controlUi.clearText,
 });

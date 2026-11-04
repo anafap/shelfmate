@@ -1,7 +1,8 @@
+import { FoundationScreen } from '@/components/FoundationScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { useHousehold } from '@/features/auth/HouseholdScreen';
 import { api } from '@/lib/session';
@@ -31,14 +32,20 @@ export default function EditInventoryScreen() {
     else router.replace('/inventory');
   }
 
+  function state(content: React.ReactNode) {
+    return <FoundationScreen title="Edit Product" description="" compact fill topPadding={8}>
+      {content}
+    </FoundationScreen>;
+  }
+
   const item = latestItem ?? product.data;
-  if (!household.data && household.isPending) return <View style={ui.loading}><ActivityIndicator accessibilityLabel="Loading household" /></View>;
-  if (household.isError) return <View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{household.error.message}</Text><Action title="Back to Inventory" onPress={returnToInventory} /></View>;
-  if (!household.data) return <View style={styles.card}><Text style={styles.body}>Create or join a household before editing inventory.</Text><Action title="Back to Inventory" onPress={returnToInventory} /></View>;
-  if (!itemId) return <View style={styles.card}><Text style={styles.error}>No product was selected.</Text><Action title="Back to Inventory" onPress={returnToInventory} /></View>;
-  if (product.isPending || categories.isPending) return <View style={ui.loading}><ActivityIndicator accessibilityLabel="Loading product details" /></View>;
-  if (product.isError) return <View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{product.error.message}</Text><Action title="Retry product" disabled={product.isFetching} onPress={() => { product.refetch(); }} /><Action variant="secondary" title="Back to Inventory" onPress={returnToInventory} /></View>;
-  if (categories.isError) return <View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{categories.error.message}</Text><Action title="Retry categories" disabled={categories.isFetching} onPress={() => { categories.refetch(); }} /><Action variant="secondary" title="Back to Inventory" onPress={returnToInventory} /></View>;
+  if (!household.data && household.isPending) return state(<View><ActivityIndicator accessibilityLabel="Loading household" /></View>);
+  if (household.isError) return state(<View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{household.error.message}</Text><Action title="Back to Inventory" onPress={returnToInventory} /></View>);
+  if (!household.data) return state(<View style={styles.card}><Text style={styles.body}>Create or join a household before editing inventory.</Text><Action title="Back to Inventory" onPress={returnToInventory} /></View>);
+  if (!itemId) return state(<View style={styles.card}><Text style={styles.error}>No product was selected.</Text><Action title="Back to Inventory" onPress={returnToInventory} /></View>);
+  if (product.isPending || categories.isPending) return state(<View><ActivityIndicator accessibilityLabel="Loading product details" /></View>);
+  if (product.isError) return state(<View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{product.error.message}</Text><Action title="Retry product" disabled={product.isFetching} onPress={() => { product.refetch(); }} /><Action variant="secondary" title="Back to Inventory" onPress={returnToInventory} /></View>);
+  if (categories.isError) return state(<View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{categories.error.message}</Text><Action title="Retry categories" disabled={categories.isFetching} onPress={() => { categories.refetch(); }} /><Action variant="secondary" title="Back to Inventory" onPress={returnToInventory} /></View>);
   if (!item || !categories.data) return null;
 
   const householdId = household.data.id;
@@ -57,5 +64,3 @@ export default function EditInventoryScreen() {
     }}
   />;
 }
-
-const ui = StyleSheet.create({ loading: { flex: 1, alignItems: 'center', justifyContent: 'center' } });

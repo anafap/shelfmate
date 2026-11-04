@@ -1,5 +1,7 @@
 # Decisions
 
+- 2026-11-04: Ana requested Home's UI language throughout the app. Adopt Home's existing ink/green/muted/border values in shared tokens and reuse compact headers, panels, and field/button treatments across secondary screens and sheets. Keep Home/Inventory composition and business flows intact. Date/time/text/select control frames share `mobile/src/theme/controlStyles.ts`; see [the consistency audit](ui-consistency-audit.md) for corrected gaps and unverified device checks.
+
 - 2026-10-12: Begin with phase 0 because the workspace contains only AGENTS.md. Preserve the existing GitHub license and history.
 - Use installed .NET 10 LTS, satisfying the requested .NET 8-or-later supported LTS stack. Reference: https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core
 - Use the official Expo SDK 55 template and its compatible React Native versions; retain its `src/app` route location. Reference: https://docs.expo.dev/versions/v55.0.0/

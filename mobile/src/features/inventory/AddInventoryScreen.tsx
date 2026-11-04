@@ -3,6 +3,7 @@ import { router, useNavigation } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
+import { PageHeader } from '@/components/PageHeader';
 import { Action, styles } from '@/features/auth/AccountScreen';
 import { useHousehold } from '@/features/auth/HouseholdScreen';
 import { api } from '@/lib/session';
@@ -21,8 +22,8 @@ export default function AddInventoryScreen() {
     await client.invalidateQueries({ queryKey: ['dashboard', household.data?.id] });
     router.replace('/inventory');
   }} />;
-  return <FoundationScreen title="Add to Inventory" description="Add a product to your shared household inventory." compact hideHeading topPadding={8}>
-    <Action variant="secondary" title="Back to Inventory" onPress={() => router.replace('/inventory')} />
+  return <FoundationScreen title="Add to Inventory" description="" compact hideHeading fill topPadding={8}>
+    <PageHeader title="Add to Inventory" onBack={() => router.replace('/inventory')} backLabel="Back to Inventory" />
     {!household.data && (household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : <Text style={styles.body}>Create or join a household before adding inventory.</Text>)}
     {categories.isPending && <ActivityIndicator accessibilityLabel="Loading categories" />}
     {categories.isError && <View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{categories.error.message}</Text><Action title="Retry categories" disabled={categories.isFetching} onPress={() => { categories.refetch(); }} /></View>}

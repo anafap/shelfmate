@@ -1,3 +1,4 @@
+import { controlUi } from '@/theme/controlStyles';
 import NativeDatePicker from '@expo/ui/community/datetime-picker';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -34,9 +35,8 @@ export function DateField({ label, value, onChange, disabled }: Props) {
 }
 
 const styles = StyleSheet.create({
-  field: { gap: 6 }, label: { fontSize: 15, lineHeight: 23, color: '#52665a' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  trigger: { flex: 1, minHeight: 50, borderWidth: 1, borderColor: '#b5c5ba', backgroundColor: '#fbfcfb', borderRadius: 10, padding: 14, justifyContent: 'center' },
-  value: { fontSize: 16, color: '#193b2e' }, clear: { minHeight: 48, paddingHorizontal: 10, justifyContent: 'center' }, clearText: { color: '#22634b', fontSize: 15, fontWeight: '600' },
-  picker: { gap: 8 }, done: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
+  field: controlUi.field, label: controlUi.label, row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trigger: { ...controlUi.frame, flex: 1, minWidth: 0, justifyContent: 'center' },
+  value: controlUi.value, clear: controlUi.clear, clearText: controlUi.clearText,
+  picker: { gap: 8 }, done: { alignSelf: 'flex-end', minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
 });

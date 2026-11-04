@@ -1,3 +1,4 @@
+import { colors } from '@/theme/tokens';
 import { syncExistingPushDevice } from '@/lib/push';
 import { useEffect } from 'react';
 import { useLiveUpdates } from '@/features/sync/useLiveUpdates';
@@ -30,16 +31,16 @@ function Navigation() {
     if (session?.user.id) void syncExistingPushDevice().catch(() => {});
   }, [session?.user.id]);
   if (loading || error || !session) return <AccountScreen />;
-  return <View style={{ flex: 1, backgroundColor: '#f5f7f5' }}>
-    <StatusBar barStyle="dark-content" backgroundColor="#f5f7f5" />
+  return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
     <SyncStatusContext.Provider value={syncStatus}>
-    <SafeAreaView edges={['top']} style={{ backgroundColor: '#f5f7f5' }}><HouseholdHeader /></SafeAreaView>
+    <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}><HouseholdHeader /></SafeAreaView>
     <Tabs screenOptions={{
     headerShown: false,
     tabBarPosition: width >= 1000 ? 'left' : 'bottom',
-    tabBarActiveTintColor: '#22634b', tabBarInactiveTintColor: '#596b62',
+    tabBarActiveTintColor: colors.green, tabBarInactiveTintColor: colors.muted,
     tabBarActiveBackgroundColor: '#eaf3ed',
-    tabBarStyle: { backgroundColor: '#fff', borderColor: '#e0e8e2', padding: 8, ...(width >= 1000 ? { width: 210 } : { height: 76 + insets.bottom, paddingBottom: 8 + insets.bottom }) },
+    tabBarStyle: { backgroundColor: colors.surface, borderColor: colors.border, padding: 8, ...(width >= 1000 ? { width: 210 } : { height: 76 + insets.bottom, paddingBottom: 8 + insets.bottom }) },
     tabBarItemStyle: { borderRadius: 12, minHeight: 52, marginVertical: 4 },
     tabBarLabelStyle: { fontSize: 13, fontWeight: '600' },
   }}>

@@ -1,3 +1,4 @@
+import { colors } from '@/theme/tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, router } from 'expo-router';
@@ -71,13 +72,13 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
         <Text accessibilityRole="header" style={pageUi.sectionTitle}>Household</Text>
         <Text style={styles.heading}>{household.data.name}</Text>
         <Text style={pageUi.body}>Time zone: {household.data.timeZone}</Text>
-        <Link href={{ pathname: '/reminder-preferences', params: { from: settings ? 'settings' : 'alerts' } }} style={{ color: '#22634b', fontSize: 15, fontWeight: '600', minHeight: 48, paddingVertical: 14 }}>Reminder preferences →</Link>
+        <Link href={{ pathname: '/reminder-preferences', params: { from: settings ? 'settings' : 'alerts' } }} style={{ color: colors.green, fontSize: 15, fontWeight: '600', minHeight: 48, paddingVertical: 14 }}>Reminder preferences →</Link>
       </View>
       <View style={pageUi.panel}>
         <Text accessibilityRole="header" style={pageUi.sectionTitle}>Members{members.data ? ` · ${members.data.length}` : ''}</Text>
         {members.isPending ? <ActivityIndicator accessibilityLabel="Loading members" /> : members.isError ? <><Text style={styles.error}>{members.error.message}</Text><Action title="Retry members" onPress={() => { members.refetch(); }} /></> : members.data?.map(m => <View key={m.userId} style={pageUi.row}>
           <View style={pageUi.copy}><Text style={pageUi.sectionTitle}>{m.displayName}</Text>{m.userId === session?.user.id && <Text style={pageUi.caption}>You</Text>}</View>
-          <Text style={{ color: '#22634b', backgroundColor: '#edf5ef', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, fontWeight: '600' }}>{m.role}</Text>
+          <Text style={{ color: colors.green, backgroundColor: colors.soft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, fontWeight: '600' }}>{m.role}</Text>
         </View>)}
         {members.data?.length === 1 && <Text style={pageUi.body}>Your household is ready. Invite household members from Settings.</Text>}
       </View>
@@ -105,7 +106,7 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
           <Action title="Create invitation" disabled={action.isPending} onPress={() => run(async () => { const result = await api<Invite>('/households/current/invites', { invitedEmail: email.trim() || null }, 'POST'); setInvite(result); })} />
           {invite && <>
             <Text style={pageUi.body}>Share this code privately. It can be used once, before {new Date(invite.expiresAt).toLocaleString()}.</Text>
-            <Text selectable style={[pageUi.body, { padding: 12, borderRadius: 10, backgroundColor: '#edf5ef' }]}>{invite.token}</Text>
+            <Text selectable style={[pageUi.body, { padding: 12, borderRadius: 10, backgroundColor: colors.soft }]}>{invite.token}</Text>
             {Platform.OS !== 'web' || (typeof navigator !== 'undefined' && typeof navigator.share === 'function')
               ? <Action title="Share invitation code" onPress={() => run(async () => { await Share.share({ message: `Join my ShelfMate household. Sign in with your own account and enter this invitation code: ${invite.token}` }); })} />
               : <Text style={pageUi.body}>Select and copy the code above to share it privately.</Text>}
@@ -115,7 +116,7 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
       {!settings && <View style={pageUi.panel}>
         <Text style={pageUi.sectionTitle}>Know what’s on your shelf</Text>
         <Text style={pageUi.body}>Add your first product to start your shared inventory.</Text>
-        <Link href="/inventory" style={{ color: '#22634b', fontSize: 16, fontWeight: '700', minHeight: 48, paddingVertical: 14 }}>Open inventory →</Link>
+        <Link href="/inventory" style={{ color: colors.green, fontSize: 16, fontWeight: '700', minHeight: 48, paddingVertical: 14 }}>Open inventory →</Link>
       </View>}
       <Action variant="secondary" title="Refresh household" disabled={action.isPending} onPress={() => run(async () => { await household.refetch(); await members.refetch(); if (settings && owner) await invites.refetch(); })} />
     </>}

@@ -1,3 +1,4 @@
+import { colors } from '@/theme/tokens';
 import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { Link, usePathname } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -50,21 +51,21 @@ export function HouseholdHeader() {
   </View>;
 }
 
-const palette = { ink: '#102a30', green: '#16704c', border: '#e8eeeb', muted: '#586c73' };
+const palette = { ink: colors.ink, green: colors.green, border: colors.border, muted: colors.muted };
 const ui = StyleSheet.create({
-  header: { paddingHorizontal: 16, paddingTop: 3, paddingBottom: 5, gap: 0, backgroundColor: '#f5f7f5' },
+  header: { paddingHorizontal: 16, paddingTop: 3, paddingBottom: 5, gap: 0, backgroundColor: colors.background },
   brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { flexShrink: 1, marginRight: 12, color: palette.green, fontSize: 25, lineHeight: 31, fontWeight: '800', letterSpacing: -0.8 },
   settingsButton: { flexShrink: 0, width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#edf2ef' },
   detailsRow: { minHeight: 48, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  householdChip: { minHeight: 48, flex: 1, minWidth: 70, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 20, backgroundColor: '#fff' },
+  householdChip: { minHeight: 48, flex: 1, minWidth: 70, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 20, backgroundColor: colors.surface },
   householdName: { flex: 1, minWidth: 0, color: palette.ink, fontSize: 14, fontWeight: '700' },
   memberInfo: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 4 },
   memberText: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   syncStatus: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 4 },
   syncDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#28865c' },
   syncDotDisconnected: { backgroundColor: '#ad5c00' },
-  syncText: { color: '#22634b', fontSize: 12, fontWeight: '700' },
+  syncText: { color: colors.green, fontSize: 12, fontWeight: '700' },
   syncTextDisconnected: { color: '#805000' },
   refreshButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   setupText: { minHeight: 40, paddingTop: 8, color: palette.muted, fontSize: 13 },

@@ -1,4 +1,5 @@
 import { colors } from '@/theme/tokens';
+import { PageHeader, pageUi } from './PageHeader';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useContext } from 'react';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
@@ -12,9 +13,8 @@ export function FoundationScreen({ title, description, children, compact = false
     <ScrollView testID={testID} style={[styles.background, fill && styles.fill]} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingHorizontal: width < 600 ? 16 : 32, paddingTop: topPadding ?? (safeAreaTop || hideHeading ? (insets?.top ?? 0) + (hideHeading ? 8 : 20) : 20), paddingBottom: bottomPadding ?? 20 }]}>
       <View style={[styles.content, hideHeading && styles.dense, compact && styles.compact]}>
         {!hideHeading && <View style={styles.heading}>
-          <Text style={styles.eyebrow}>SHELFMATE / YOUR HOUSEHOLD</Text>
-          <Text style={styles.title} accessibilityRole="header">{title}</Text>
-          <Text style={styles.body}>{description}</Text>
+          <PageHeader title={title} />
+          {!!description && <Text style={pageUi.body}>{description}</Text>}
         </View>}
         {children}
       </View>
@@ -29,7 +29,4 @@ const styles = StyleSheet.create({
   dense: { gap: 10 },
   compact: { maxWidth: 560 },
   heading: { gap: 10, paddingVertical: 8 },
-  eyebrow: { color: '#48725e', fontSize: 11, fontWeight: '700', letterSpacing: 2 },
-  title: { fontSize: 34, fontWeight: '700', color: '#193b2e', letterSpacing: -1 },
-  body: { fontSize: 16, lineHeight: 25, color: '#596b62', maxWidth: 650 },
 });

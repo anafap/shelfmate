@@ -1,11 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing } from '@/theme/tokens';
 
-export function PageHeader({ title, onBack, backLabel = 'Back', count }: { title: string; onBack?: () => void; backLabel?: string; count?: string }) {
+export function PageHeader({ title, onBack, backLabel = 'Back', count, action }: { title: string; onBack?: () => void; backLabel?: string; count?: string; action?: React.ReactNode }) {
   return <View style={pageUi.header}>
     {onBack && <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} style={pageUi.back}><Text style={pageUi.backText}>←</Text></Pressable>}
     <Text accessibilityRole="header" style={pageUi.title}>{title}</Text>
     {count !== undefined && <Text style={pageUi.caption}>{count}</Text>}
+    {action}
   </View>;
 }
 export const pageUi = StyleSheet.create({

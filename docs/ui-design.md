@@ -1,5 +1,9 @@
 # ShelfMate UI baseline
 
+The [2026-11-04 consistency audit](ui-consistency-audit.md) lists the gaps found across every screen and sheet and the corrections made to align them with Home. Home's existing ink/green/muted/border values are now the shared palette; `controlStyles.ts` supplies the common field treatment. The historical verification records below refer to their stated revisions.
+
+Verification for the 2026-11-04 consistency change: `npm run lint`, `npm run typecheck`, all 15 mobile suites / 96 tests, skill validation, and `CI=1 npx expo export --platform all --output-dir dist/ui-consistency` passed. Android, iOS, and web bundles include all current screen routes. Computer Use permissions were unavailable, so rendered comparison, native/large-text acceptance, and an updated signed APK remain outstanding.
+
 Home and Inventory retain their current composition, cards, filters, navigation, and floating add actions. Changes there are limited to demonstrated readability, accessibility, and date-copy defects. Do not recreate illustrative product photography or add unsupported controls from design references.
 
 Other screens use the same pale green background, white surfaces, dark green text, restrained borders, and semantic expiry colors. Shared tokens live in `mobile/src/theme/tokens.ts`. Use 4/8/12/16/24 spacing, compact titles, and 48-point touch targets. Let content wrap at larger text sizes; urgency must include words alongside color.

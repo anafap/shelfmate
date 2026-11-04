@@ -1,3 +1,4 @@
+import { colors } from '@/theme/tokens';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -150,8 +151,8 @@ export function naturalExpiry(item: InventoryItem) {
   return expiryLabel(item);
 }
 
-const palette = { ink: '#102a30', green: '#16704c', border: '#e8eeeb', muted: '#586c73' };
-const uiColors = { red: '#d82f35', orange: '#c45a00', amber: '#ad5c00', green: '#16704c', neutral: '#586c73' };
+const palette = { ink: colors.ink, green: colors.green, border: colors.border, muted: colors.muted };
+const uiColors = { red: '#d82f35', orange: '#c45a00', amber: '#ad5c00', green: colors.green, neutral: colors.muted };
 const metricIcons = { red: { ios: 'exclamationmark.circle.fill', android: 'error', web: 'error' }, amber: { ios: 'clock.fill', android: 'schedule', web: 'schedule' }, green: { ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' } } as const;
 const expiryIcons = { red: { ios: 'exclamationmark.circle.fill', android: 'error', web: 'error' }, orange: { ios: 'clock.fill', android: 'today', web: 'today' }, amber: { ios: 'clock.fill', android: 'schedule', web: 'schedule' }, green: { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }, neutral: { ios: 'questionmark.circle.fill', android: 'help', web: 'help' } } as const;
 const ui = StyleSheet.create({
@@ -174,7 +175,7 @@ const ui = StyleSheet.create({
   viewAllText: { color: palette.ink, fontSize: 14 },
   productList: { gap: 7 },
   productListWide: { flexDirection: 'row', flexWrap: 'wrap' },
-  productCard: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, minHeight: 78, flexGrow: 1, flexBasis: 300, borderRadius: 15, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  productCard: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, minHeight: 78, flexGrow: 1, flexBasis: 300, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   productCard_red: { backgroundColor: '#fff4f2', borderColor: '#f5dfdc' },
   productIcon: { width: 44, height: 44, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#f3f7f4' },
   productCopy: { flex: 1, minWidth: 0, gap: 1 },
@@ -190,17 +191,17 @@ const ui = StyleSheet.create({
   expiryText: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   productMeta: { flexShrink: 1, color: palette.muted, fontSize: 13, lineHeight: 18 },
   productLocation: { flexShrink: 1, color: palette.muted, fontSize: 13, lineHeight: 18 },
-  emptyCard: { padding: 17, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: palette.border, gap: 5 },
+  emptyCard: { padding: 17, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: palette.border, gap: 5 },
   emptyTitle: { color: palette.ink, fontSize: 17, fontWeight: '700' },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
-  addMenu: { alignSelf: 'flex-end', width: '100%', maxWidth: 420, padding: 6, gap: 0, borderRadius: 18, backgroundColor: '#fff', shadowColor: '#102a30', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
-  addOption: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, borderRadius: 13, backgroundColor: '#fff' },
+  addMenu: { alignSelf: 'flex-end', width: '100%', maxWidth: 420, padding: 6, gap: 0, borderRadius: 18, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
+  addOption: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, borderRadius: 13, backgroundColor: colors.surface },
   addOptionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#eaf6ed' },
   shoppingOptionIcon: { backgroundColor: '#f3eaff' },
   addOptionCopy: { flex: 1, gap: 2 },
   addOptionTitle: { color: palette.ink, fontSize: 15, fontWeight: '800' },
   addOptionHint: { color: palette.muted, fontSize: 12 },
-  shoppingCard: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 17, backgroundColor: '#fff' },
+  shoppingCard: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 17, backgroundColor: colors.surface },
   scrollEndSpace: { height: FAB_SCROLL_END_PADDING },
   shoppingIcon: { width: 50, height: 50, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#eaf6ed' },
   shoppingCopy: { flex: 1, gap: 3 },

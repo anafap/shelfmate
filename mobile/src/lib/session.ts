@@ -164,6 +164,8 @@ export async function api<T>(path: string, body?: unknown, method = 'GET'): Prom
 export async function signOut() {
   const token = refreshToken;
   const expected = ++generation;
+  // Hide private screens and clear their caches before waiting for storage or network.
+  publish(null);
   try {
     if (token) {
       // Retain only the capability to revoke; never restore or refresh queued tokens.

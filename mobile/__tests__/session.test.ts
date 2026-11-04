@@ -94,6 +94,21 @@ function deferredResponse() {
   const promise = new Promise<Response>(done => { resolve = done; });
   return { promise, resolve };
 }
+test('sign-out immediately clears the account while server revocation is pending', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const pending = deferredResponse();
+  fetchMock.mockResolvedValueOnce(response(200, session)).mockReturnValueOnce(pending.promise);
+  await client.signIn('ana@example.com', 'password');
+  const listener = jest.fn();
+  const unsubscribe = client.subscribeSession(listener);
+  const signingOut = client.signOut();
+  expect(client.getSession()).toBeNull();
+  expect(listener).toHaveBeenCalled();
+  await expect(client.api('/me')).rejects.toThrow('Please sign in again.');
+  pending.resolve(response(204));
+  await signingOut;
+  unsubscribe();
+});
 const otherSession = { ...session, accessToken: 'other-access', refreshToken: 'other-refresh', user: { ...session.user, id: 'other' } };
 
 test('an old-account write is never retried under a new account', async () => {

@@ -3,11 +3,13 @@ namespace ShelfMate.Application;
 public sealed record PreferenceRequest(bool PushEnabled, bool InAppEnabled, int[] DayOffsets, Guid[] MutedCategoryIds, string LocalDeliveryTime);
 public sealed record DeviceRequest(string Token, string Platform);
 public sealed record DeviceResult(Guid Id, string Platform, DateTimeOffset LastSeenAt, bool Active);
+public sealed record AlertPage(List<InventoryResult> Items, int Total, int Page, int PageSize);
 public interface INotificationService
 {
     Task<PreferenceRequest> Preferences(Guid userId);
     Task<PreferenceRequest> SavePreferences(Guid userId, PreferenceRequest request);
     Task<List<InventoryResult>> Alerts(Guid userId);
+    Task<AlertPage> AlertsPage(Guid userId, int page, int pageSize);
     Task<List<DeviceResult>> Devices(Guid userId);
     Task<DeviceResult> RegisterDevice(Guid userId, Guid sessionId, DeviceRequest request);
     Task RemoveDevice(Guid userId, Guid id);

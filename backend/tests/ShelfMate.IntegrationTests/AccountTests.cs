@@ -718,6 +718,18 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(today.Id, alerts.Last().Id);
         Assert.Equal(0, alerts.Last().DaysRemaining);
         Assert.InRange(queries.Reads, 1, 5); // Includes authentication and household/preference lookup.
+        var paged = new List<InventoryResult>();
+        for (var page = 1; page <= 3; page++)
+        {
+            var result = (await owner.GetFromJsonAsync<AlertPage>($"/api/v1/households/current/alerts/page?page={page}&pageSize=50"))!;
+            Assert.Equal(102, result.Total); Assert.InRange(result.Items.Count, 1, 50); paged.AddRange(result.Items);
+        }
+        Assert.Equal(alerts.Select(x => x.Id), paged.Select(x => x.Id));
+        Assert.Equal(102, paged.Select(x => x.Id).Distinct().Count());
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/api/v1/households/current/alerts/page?pageSize=101")).StatusCode);
+        var (outsider, _) = await Register("outsider"); await Create(outsider);
+        Assert.Equal(0, (await outsider.GetFromJsonAsync<AlertPage>("/api/v1/households/current/alerts/page"))!.Total);
+
     }
 
     [Fact]
@@ -735,6 +747,36 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(12, shopping.Count);
         Assert.All(shopping, item => Assert.Equal("owner", item.PurchasedByName));
         Assert.InRange(queries.Reads, 1, 4); // Includes authentication and household lookup.
+        await owner.PostAsJsonAsync("/api/v1/households/current/shopping-items", new SaveShoppingRequest("To buy"));
+        var first = (await owner.GetFromJsonAsync<ShoppingPage>("/api/v1/households/current/shopping-items/page?pageSize=5"))!;
+        Assert.Equal(13, first.Total); Assert.Equal(1, first.ToBuyCount); Assert.Equal(12, first.PurchasedCount);
+        Assert.Equal("ToBuy", first.Items.First().Status);
+        Assert.Equal(5, first.Items.Count);
+        var last = (await owner.GetFromJsonAsync<ShoppingPage>("/api/v1/households/current/shopping-items/page?page=3&pageSize=5"))!;
+        Assert.Equal(3, last.Items.Count);
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/api/v1/households/current/shopping-items/page?page=0")).StatusCode);
+        var (outsider, _) = await Register("outsider"); await Create(outsider);
+        Assert.Equal(0, (await outsider.GetFromJsonAsync<ShoppingPage>("/api/v1/households/current/shopping-items/page"))!.Total);
+
+    }
+
+    [Fact]
+    public async Task LegacyListEndpointsBoundResponsesAndPagedEndpointsStillReachTheLastRecord()
+    {
+        var (owner, session) = await Register("owner"); var household = await Create(owner);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>();
+            db.Shopping.AddRange(Enumerable.Range(0, 1001).Select(i => new ShelfMate.Domain.ShoppingItem { HouseholdId = household.Id, Name = $"Item {i}", CreatedBy = session.User.Id, CreatedAt = clock.GetUtcNow(), UpdatedAt = clock.GetUtcNow() }));
+            db.Inventory.AddRange(Enumerable.Range(0, 1001).Select(i => new ShelfMate.Domain.InventoryItem { HouseholdId = household.Id, Name = $"Item {i}", CategoryId = Product().CategoryId, Quantity = 1, ExpiryDate = new DateOnly(2026, 10, 12), ExpiryType = "Printed", CreatedBy = session.User.Id, UpdatedBy = session.User.Id, CreatedAt = clock.GetUtcNow(), UpdatedAt = clock.GetUtcNow() }));
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/api/v1/households/current/shopping-items")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/api/v1/households/current/alerts")).StatusCode);
+        var shopping = (await owner.GetFromJsonAsync<ShoppingPage>("/api/v1/households/current/shopping-items/page?page=11&pageSize=100"))!;
+        var alerts = (await owner.GetFromJsonAsync<AlertPage>("/api/v1/households/current/alerts/page?page=11&pageSize=100"))!;
+        Assert.Equal(1001, shopping.Total); Assert.Single(shopping.Items);
+        Assert.Equal(1001, alerts.Total); Assert.Single(alerts.Items);
     }
 
     [Fact]

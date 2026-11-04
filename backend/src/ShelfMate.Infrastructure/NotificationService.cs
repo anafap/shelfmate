@@ -26,15 +26,34 @@ public sealed partial class NotificationService(ShelfMateDbContext db, IAccountS
         preference.DayOffsets = request.DayOffsets.OrderDescending().ToArray(); preference.MutedCategoryIds = request.MutedCategoryIds.Distinct().ToArray(); preference.LocalDeliveryTime = delivery;
         await db.SaveChangesAsync(); await tx.CommitAsync(); return View(preference);
     }
+    private IQueryable<InventoryItem> AlertItems(Guid householdId, NotificationPreference preference, DateTimeOffset now, string timeZone)
+    {
+        var through = ExpiryRules.Assess(null, now, timeZone).LocalDate.AddDays(preference.DayOffsets.DefaultIfEmpty(0).Max());
+        return db.Inventory.AsNoTracking().Where(x => x.HouseholdId == householdId && preference.InAppEnabled && preference.DayOffsets.Length > 0
+            && x.Status == "Active" && x.ReminderEnabled && x.ExpiryDate != null && x.ExpiryDate <= through && !preference.MutedCategoryIds.Contains(x.CategoryId))
+            .OrderBy(x => x.ExpiryDate).ThenBy(x => x.Name).ThenBy(x => x.Id);
+    }
+
     public async Task<List<InventoryResult>> Alerts(Guid userId)
     {
         var household = await accounts.CurrentHousehold(userId); var preference = await Get(userId, household.Id);
-        if (!preference.InAppEnabled || preference.DayOffsets.Length == 0) return [];
         var now = clock.GetUtcNow();
-        var today = ExpiryRules.Assess(null, now, household.TimeZone).LocalDate;
-        var through = today.AddDays(preference.DayOffsets.Max());
-        var items = await db.Inventory.AsNoTracking().Where(x => x.HouseholdId == household.Id && x.Status == "Active" && x.ReminderEnabled && x.ExpiryDate != null && x.ExpiryDate <= through && !preference.MutedCategoryIds.Contains(x.CategoryId)).OrderBy(x => x.ExpiryDate).ThenBy(x => x.Name).ThenBy(x => x.Id).ToListAsync();
-        return items.Select(item => InventoryResults.Create(item, now, household.TimeZone, preference.DayOffsets.Max())).ToList();
+        var items = await AlertItems(household.Id, preference, now, household.TimeZone).Take(1001).ToListAsync();
+        if (items.Count > 1000) throw new InventoryError(400, "Use the paginated alerts endpoint for large lists.");
+        return items.Select(item => InventoryResults.Create(item, now, household.TimeZone, preference.DayOffsets.DefaultIfEmpty(0).Max())).ToList();
+    }
+
+    public async Task<AlertPage> AlertsPage(Guid userId, int page, int pageSize)
+    {
+        if (page is < 1 or > 1000000 || pageSize is < 1 or > 100) throw new InventoryError(400, "Choose a valid page and page size from 1 to 100.");
+        var household = await accounts.CurrentHousehold(userId); var now = clock.GetUtcNow();
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        var preference = await Get(userId, household.Id);
+        var query = AlertItems(household.Id, preference, now, household.TimeZone);
+        var total = await query.CountAsync();
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        await transaction.CommitAsync();
+        return new(items.Select(item => InventoryResults.Create(item, now, household.TimeZone, preference.DayOffsets.DefaultIfEmpty(0).Max())).ToList(), total, page, pageSize);
     }
     private static DeviceResult View(PushDevice d) => new(d.Id, d.Platform, d.LastSeenAt, d.InvalidatedAt is null);
     public async Task<List<DeviceResult>> Devices(Guid userId)

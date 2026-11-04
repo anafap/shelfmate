@@ -9,6 +9,7 @@ public static class NotificationEndpoints
     public static void MapNotifications(this WebApplication app)
     {
         var api = app.MapGroup("/api/v1").RequireAuthorization();
+        api.MapGet("/households/current/alerts/page", (ClaimsPrincipal u, INotificationService s, int? page, int? pageSize) => s.AlertsPage(User(u), page ?? 1, pageSize ?? 50));
         api.MapGet("/households/current/alerts", (ClaimsPrincipal u, INotificationService s) => s.Alerts(User(u)));
         api.MapGet("/me/notification-preferences", (ClaimsPrincipal u, INotificationService s) => s.Preferences(User(u)));
         api.MapPut("/me/notification-preferences", (PreferenceRequest r, ClaimsPrincipal u, INotificationService s) => s.SavePreferences(User(u), r));

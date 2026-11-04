@@ -15,7 +15,7 @@ beforeEach(() => {
   jest.mocked(api).mockImplementation(async (path, body) => {
     if (path === '/me/notification-preferences') { if (body) preferences = body as Preferences; return preferences as never; }
     if (path === '/households/current/categories') return [{ id: 'dairy', name: 'Dairy' }] as never;
-    return [item] as never;
+    return { items: [item], total: 1, page: 1, pageSize: 50 } as never;
   });
 });
 async function setup(editor = false) {
@@ -70,9 +70,23 @@ test('a failed save keeps the reminder draft available for retry', async () => {
   client.clear();
 });
 test('empty Alerts offers preferences without requesting push permission', async () => {
-  jest.mocked(api).mockImplementation(async path => path.endsWith('/alerts') ? [] as never : preferences as never);
+  jest.mocked(api).mockImplementation(async path => path.includes('/alerts/page') ? { items: [], total: 0, page: 1, pageSize: 50 } as never : preferences as never);
   const client = await setup();
   expect(await screen.findByText('Nothing to review right now')).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Edit reminder preferences' })).toBeTruthy();
   expect(registerPushDevice).not.toHaveBeenCalled(); client.clear();
+});
+
+test('alerts show the server total and reach later eligible items on scroll', async () => {
+  jest.mocked(api).mockImplementation(async path => {
+    if (path.includes('/alerts/page')) return { items: path.includes('page=2') ? [{ ...item, id: 'rice', name: 'Rice' }] : [item], total: 2, page: path.includes('page=2') ? 2 : 1, pageSize: 1 } as never;
+    return preferences as never;
+  });
+  const client = await setup();
+  expect(await screen.findByText('2 to review')).toBeTruthy();
+  await screen.findByText('Milk');
+  await fireEvent(screen.getByTestId('alerts-list'), 'endReached');
+  expect(await screen.findByText('Rice')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Refresh alerts' })).toBeTruthy();
+  client.clear();
 });

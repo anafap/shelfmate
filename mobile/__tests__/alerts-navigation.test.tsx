@@ -11,7 +11,7 @@ jest.mock('@/features/sync/useLiveUpdates', () => ({ useLiveUpdates: () => 'Shar
 jest.mock('@/features/auth/SessionProvider', () => ({ SessionProvider: ({ children }: { children: React.ReactNode }) => children, useSession: () => ({ session: { user: { id: 'owner' } } }) }));
 jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: { id: 'home', name: 'Our home', timeZone: 'Asia/Bahrain' } }) }));
 test('Alerts opens the dedicated editor and cancel returns without saving', async () => {
-  jest.mocked(api).mockImplementation(async url => url.endsWith('notification-preferences') ? { inAppEnabled: true, pushEnabled: false, dayOffsets: [7, 3, 1, 0], mutedCategoryIds: [], localDeliveryTime: '09:00' } as never : [] as never);
+  jest.mocked(api).mockImplementation(async url => url.endsWith('notification-preferences') ? { inAppEnabled: true, pushEnabled: false, dayOffsets: [7, 3, 1, 0], mutedCategoryIds: [], localDeliveryTime: '09:00' } as never : url.includes('/alerts/page') ? { items: [], total: 0, page: 1, pageSize: 50 } as never : [] as never);
   const placeholder = () => <View />;
   const routing = renderRouter({ _layout: RootLayout, index: placeholder, inventory: placeholder, shopping: placeholder, alerts: Alerts, 'reminder-preferences': Reminders, settings: placeholder, 'add-inventory': placeholder, 'edit-inventory': placeholder }, { initialUrl: '/alerts' });
   await routing;

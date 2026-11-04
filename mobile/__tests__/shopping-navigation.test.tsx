@@ -15,6 +15,7 @@ jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ dat
 test('Shopping tab opens the real screen and Home navigation remains available after adding', async () => {
   jest.mocked(api).mockImplementation(async url => {
     if (url.endsWith('/dashboard')) return { activeCount: 0, shoppingListCount: 0, useFirst: [] } as never;
+    if (url.includes('shopping-items/page')) return { items: [], total: 0, page: 1, pageSize: 50, toBuyCount: 0, purchasedCount: 0 } as never;
     return [] as never;
   });
   const placeholder = () => <View />;

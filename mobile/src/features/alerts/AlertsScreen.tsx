@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { ListPage, nextPage, uniquePageItems } from '@/lib/listPages';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FoundationScreen } from '@/components/FoundationScreen';
@@ -14,10 +15,23 @@ export type { Preferences } from './ReminderPreferencesScreen';
 export default function AlertsScreen() {
   const household = useHousehold();
   const preferences = useQuery({ queryKey: ['preferences', household.data?.id], queryFn: () => api<Preferences>('/me/notification-preferences'), enabled: !!household.data, retry: false });
-  const alerts = useQuery({ queryKey: ['alerts', household.data?.id], queryFn: () => api<InventoryItem[]>('/households/current/alerts'), enabled: !!household.data, retry: false });
+  const pages = useInfiniteQuery({ queryKey: ['alerts', household.data?.id], initialPageParam: 1,
+    queryFn: ({ pageParam }) => api<ListPage<InventoryItem>>(`/households/current/alerts/page?page=${pageParam}&pageSize=50`), getNextPageParam: nextPage, enabled: !!household.data, retry: false });
+  const alerts = { ...pages, data: uniquePageItems(pages.data?.pages) };
+
   if (!household.isPending && !household.isError && !household.data) return <HouseholdScreen />;
-  return <FoundationScreen title="Alerts" description="" hideHeading fill topPadding={8}>
-    <PageHeader title="Alerts" count={alerts.data ? `${alerts.data.length} to review` : undefined} />
+  return <FoundationScreen title="Alerts" description="" hideHeading fill topPadding={8} testID="alerts-list" list={{ data: alerts.data ?? [], keyExtractor: item => item.id,
+    onEndReached: () => { if (pages.hasNextPage && !pages.isFetching) void pages.fetchNextPage(); },
+    footer: <Action variant="secondary" title="Refresh alerts" disabled={alerts.isFetching} onPress={() => { alerts.refetch(); preferences.refetch(); }} />,
+    renderItem: item => <Link key={item.id} href={{ pathname: '/inventory', params: { itemId: item.id } }} asChild>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Review ${item.name}`} style={StyleSheet.flatten([ui.item, ui[expiryTone(item)]])}>
+            <View style={pageUi.copy}><Text style={ui.name}>{item.name}</Text><Text style={ui.urgency}>{expiryLabel(item)}</Text>
+              <Text style={pageUi.caption}>{item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} · {item.expiryDate ? formatProductDate(item.expiryDate) : 'No date'} · {item.quantity} {item.unit}</Text>
+            </View><Text style={ui.chevron}>›</Text>
+          </Pressable>
+        </Link> }}>
+
+    <PageHeader title="Alerts" count={alerts.data ? `${pages.data?.pages[0]?.total ?? 0} to review` : undefined} />
     {household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={pageUi.panel}><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></View> : <>
       <Link href={{ pathname: '/reminder-preferences', params: { from: 'alerts' } }} asChild><Pressable accessibilityRole="button" accessibilityLabel="Edit reminder preferences" style={pageUi.panel}>
         <View style={pageUi.row}><View style={pageUi.copy}><Text style={pageUi.sectionTitle}>Reminders</Text>
@@ -35,15 +49,8 @@ export default function AlertsScreen() {
       {!!alerts.data?.length && <>
         <Text accessibilityRole="header" style={pageUi.sectionTitle}>Items to review</Text>
         <Text style={pageUi.body}>Review products and packaging instructions. Estimated dates are guides, not verified safety deadlines.</Text>
-        {alerts.data.map(item => <Link key={item.id} href={{ pathname: '/inventory', params: { itemId: item.id } }} asChild>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Review ${item.name}`} style={StyleSheet.flatten([ui.item, ui[expiryTone(item)]])}>
-            <View style={pageUi.copy}><Text style={ui.name}>{item.name}</Text><Text style={ui.urgency}>{expiryLabel(item)}</Text>
-              <Text style={pageUi.caption}>{item.expiryType === 'Estimated' ? 'Estimated' : 'Printed'} · {item.expiryDate ? formatProductDate(item.expiryDate) : 'No date'} · {item.quantity} {item.unit}</Text>
-            </View><Text style={ui.chevron}>›</Text>
-          </Pressable>
-        </Link>)}
+
       </>}
-      <Action variant="secondary" title="Refresh alerts" disabled={alerts.isFetching} onPress={() => { alerts.refetch(); preferences.refetch(); }} />
     </>}
   </FoundationScreen>;
 }

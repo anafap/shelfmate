@@ -15,16 +15,31 @@ public sealed class ShoppingService(ShelfMateDbContext db, IAccountService accou
     }
     private async Task<ShoppingResult> View(ShoppingItem x) => new(x.Id, x.HouseholdId, x.Name, x.CategoryId, x.Quantity, x.Unit, x.Notes, x.Status, x.CreatedBy, x.PurchasedBy,
         x.PurchasedBy is null ? null : await db.Users.Where(u => u.Id == x.PurchasedBy).Select(u => u.DisplayName).SingleAsync(), x.PurchasedAt, x.LinkedInventoryItemId, x.CreatedAt, x.UpdatedAt, x.Version);
+    private IQueryable<ShoppingResult> ListQuery(Guid household) =>
+        from item in db.Shopping.AsNoTracking()
+        join purchaser in db.Users on item.PurchasedBy equals (Guid?)purchaser.Id into purchasers
+        from purchaser in purchasers.DefaultIfEmpty()
+        where item.HouseholdId == household
+        orderby item.Status == "Purchased", item.CreatedAt, item.Id
+        select new ShoppingResult(item.Id, item.HouseholdId, item.Name, item.CategoryId, item.Quantity, item.Unit, item.Notes, item.Status, item.CreatedBy,
+            item.PurchasedBy, purchaser == null ? null : purchaser.DisplayName, item.PurchasedAt, item.LinkedInventoryItemId, item.CreatedAt, item.UpdatedAt, item.Version);
+
     public async Task<List<ShoppingResult>> List(Guid userId)
     {
+        var items = await ListQuery(await Household(userId)).Take(1001).ToListAsync();
+        if (items.Count > 1000) throw Error(400, "Use the paginated shopping list endpoint for large lists.");
+        return items;
+    }
+
+    public async Task<ShoppingPage> ListPage(Guid userId, int page, int pageSize)
+    {
+        if (page is < 1 or > 1000000 || pageSize is < 1 or > 100) throw Error(400, "Choose a valid page and page size from 1 to 100.");
         var household = await Household(userId);
-        return await (from item in db.Shopping.AsNoTracking()
-                      join purchaser in db.Users on item.PurchasedBy equals (Guid?)purchaser.Id into purchasers
-                      from purchaser in purchasers.DefaultIfEmpty()
-                      where item.HouseholdId == household
-                      orderby item.Status == "Purchased", item.CreatedAt, item.Id
-                      select new ShoppingResult(item.Id, item.HouseholdId, item.Name, item.CategoryId, item.Quantity, item.Unit, item.Notes, item.Status, item.CreatedBy,
-                          item.PurchasedBy, purchaser == null ? null : purchaser.DisplayName, item.PurchasedAt, item.LinkedInventoryItemId, item.CreatedAt, item.UpdatedAt, item.Version)).ToListAsync();
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        var counts = await db.Shopping.Where(x => x.HouseholdId == household).GroupBy(x => x.Status).Select(g => new { Status = g.Key, Count = g.Count() }).ToListAsync();
+        var items = await ListQuery(household).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        await transaction.CommitAsync();
+        return new(items, counts.Sum(x => x.Count), page, pageSize, counts.Where(x => x.Status == "ToBuy").Sum(x => x.Count), counts.Where(x => x.Status == "Purchased").Sum(x => x.Count));
     }
     private async Task Apply(ShoppingItem item, SaveShoppingRequest r)
     {

@@ -11,10 +11,11 @@ jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ dat
 const base = { id: 'milk', name: 'Milk', householdId: 'home', quantity: 1, unit: 'bottle', categoryId: 'dairy', notes: null, status: 'ToBuy', version: 'v1', purchasedByName: null, purchasedAt: null, linkedInventoryItemId: null } as ShoppingItem;
 let items: ShoppingItem[] = [];
 const path = '/households/current/shopping-items';
+function pageResult() { return { items, total: items.length, page: 1, pageSize: 50, toBuyCount: items.filter(x => x.status === 'ToBuy').length, purchasedCount: items.filter(x => x.status === 'Purchased').length }; }
 beforeEach(() => { jest.clearAllMocks(); items = []; jest.mocked(api).mockImplementation(async (url, body) => {
   if (url === '/households/current/categories') return [{ id: 'dairy', key: 'dairy', name: 'Dairy' }] as never;
   if (url.startsWith(`${inventoryPath}?`)) return { items: [], total: 0, page: 1, pageSize: 100 } as never;
-  if (url === path && body === undefined) return items as never;
+  if (url.startsWith(`${path}/page`) && body === undefined) return pageResult() as never;
   return undefined as never;
 }); });
 async function setup() {
@@ -52,8 +53,8 @@ test('purchase is separate from inventory transfer, which asks for quantity and 
     if (url.endsWith('/transfer-to-inventory')) return {} as never;
     if (url === '/households/current/categories') return [{ id: 'dairy', key: 'dairy', name: 'Dairy' }] as never;
     if (url.startsWith(`${inventoryPath}?`)) return { items: [], total: 0, page: 1, pageSize: 100 } as never;
-    if (url === path && method === undefined) return items as never;
-    return items as never;
+    if (url.startsWith(`${path}/page`) && method === undefined) return pageResult() as never;
+    return pageResult() as never;
   });
   const client = await setup(); await screen.findByRole('checkbox', { name: 'Mark Milk purchased' });
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk purchased' }));
@@ -109,7 +110,7 @@ test('matching inventory is shown before allowing a separate transfer', async ()
   jest.mocked(api).mockImplementation(async url => {
     if (url === '/households/current/categories') return [{ id: 'dairy', key: 'dairy', name: 'Dairy' }] as never;
     if (url.startsWith(`${inventoryPath}?`)) return { items: [{ id: 'existing', name: 'Milk', quantity: 2, unit: 'bottle', storageLocation: 'Fridge', expiryDate: '2026-10-20', expiryType: 'Printed' }], total: 1, page: 1, pageSize: 100 } as never;
-    return items as never;
+    return pageResult() as never;
   });
   const client = await setup(); await screen.findByRole('button', { name: 'Show purchased items' });
   await fireEvent.press(screen.getByRole('button', { name: 'Show purchased items' }));
@@ -137,5 +138,22 @@ test('canceling the transfer sheet leaves the purchase intact without creating i
   expect(screen.queryByLabelText('Product name')).toBeNull();
   expect(screen.getByRole('checkbox', { name: 'Uncheck Milk' })).toBeTruthy();
   expect(jest.mocked(api).mock.calls.some(([url]) => url.endsWith('/transfer-to-inventory'))).toBe(false);
+  client.clear();
+});
+
+test('scrolling loads later shopping pages without changing checklist actions or duplicating rows', async () => {
+  const second = { ...base, id: 'bread', name: 'Bread' };
+  jest.mocked(api).mockImplementation(async url => {
+    if (url.startsWith(`${path}/page`)) return { items: url.includes('page=2') ? [second] : [base], total: 2, page: url.includes('page=2') ? 2 : 1, pageSize: 1, toBuyCount: 2, purchasedCount: 0 } as never;
+    if (url === '/households/current/categories') return [] as never;
+    return undefined as never;
+  });
+  const client = await setup();
+  await screen.findByRole('checkbox', { name: 'Mark Milk purchased' });
+  expect(screen.queryByRole('checkbox', { name: 'Mark Bread purchased' })).toBeNull();
+  await fireEvent(screen.getByTestId('shopping-scroll'), 'endReached');
+  expect(await screen.findByRole('checkbox', { name: 'Mark Bread purchased' })).toBeTruthy();
+  expect(screen.getAllByRole('checkbox', { name: 'Mark Milk purchased' })).toHaveLength(1);
+  await waitFor(() => expect(api).toHaveBeenCalledWith(`${path}/page?page=2&pageSize=50`));
   client.clear();
 });

@@ -9,6 +9,7 @@ public static class ShoppingEndpoints
     public static void MapShopping(this WebApplication app)
     {
         var api = app.MapGroup("/api/v1/households/current/shopping-items").RequireAuthorization();
+        api.MapGet("/page", (ClaimsPrincipal u, IShoppingService s, int? page, int? pageSize) => s.ListPage(User(u), page ?? 1, pageSize ?? 50));
         api.MapGet("", (ClaimsPrincipal u, IShoppingService s) => s.List(User(u)));
         api.MapPost("", async (SaveShoppingRequest r, ClaimsPrincipal u, IShoppingService s) => Results.Json(await s.Create(User(u), r), statusCode: 201));
         api.MapPatch("/{id:guid}", (Guid id, SaveShoppingRequest r, ClaimsPrincipal u, IShoppingService s) => s.Update(User(u), id, r));

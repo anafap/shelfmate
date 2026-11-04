@@ -1,7 +1,8 @@
+import { ListPage, nextPage, uniquePageItems } from '@/lib/listPages';
 import { invalidateResource } from '@/lib/invalidateResource';
 import { PageHeader } from '@/components/PageHeader';
 import { colors } from '@/theme/tokens';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useContext, useEffect, useState } from 'react';
 import { Link } from 'expo-router';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
@@ -16,6 +17,8 @@ import { Category, InventoryItem, InventoryPage, formatProductDate, inventoryPat
 import { api } from '@/lib/session';
 
 export type ShoppingItem = { id: string; householdId: string; name: string; quantity: number | null; unit: string | null; categoryId: string | null; notes: string | null; status: 'ToBuy' | 'Purchased'; version: string; purchasedByName: string | null; purchasedAt: string | null; linkedInventoryItemId: string | null };
+type ShoppingPage = ListPage<ShoppingItem> & { toBuyCount: number; purchasedCount: number };
+type ShoppingRow = { key: string; kind: 'to-buy' | 'purchased' | 'empty' | 'item'; item?: ShoppingItem };
 const path = '/households/current/shopping-items';
 export default function ShoppingScreen() {
   const household = useHousehold(); const client = useQueryClient();
@@ -28,7 +31,17 @@ export default function ShoppingScreen() {
   const [transferName, setTransferName] = useState(''); const [detail, setDetail] = useState<ShoppingItem | null>(null);
   const [openItemId, setOpenItemId] = useState<string | null>(null); const [showPurchased, setShowPurchased] = useState(false); const [message, setMessage] = useState('');
   useEffect(() => { if (!message) return; const timer = setTimeout(() => setMessage(''), 4000); return () => clearTimeout(timer); }, [message]);
-  const list = useQuery({ queryKey: ['shopping', household.data?.id], queryFn: () => api<ShoppingItem[]>(path), enabled: !!household.data, retry: false });
+  const pages = useInfiniteQuery({ queryKey: ['shopping', household.data?.id], initialPageParam: 1,
+    queryFn: ({ pageParam }) => api<ShoppingPage>(`${path}/page?page=${pageParam}&pageSize=50`), getNextPageParam: nextPage, enabled: !!household.data, retry: false });
+  const list = { ...pages, data: uniquePageItems(pages.data?.pages) };
+  const toBuyCount = pages.data?.pages[0]?.toBuyCount ?? 0;
+  const purchasedCount = pages.data?.pages[0]?.purchasedCount ?? 0;
+  const rows: ShoppingRow[] = list.data?.length ? [{ key: 'to-buy', kind: 'to-buy' },
+    ...list.data.filter(item => item.status === 'ToBuy').map(item => ({ key: item.id, kind: 'item' as const, item })),
+    ...(toBuyCount === 0 ? [{ key: 'empty', kind: 'empty' as const }] : []),
+    ...(purchasedCount && (list.data.filter(item => item.status === 'ToBuy').length >= toBuyCount) ? [{ key: 'purchased', kind: 'purchased' as const }] : []),
+    ...(showPurchased ? list.data.filter(item => item.status === 'Purchased').map(item => ({ key: item.id, kind: 'item' as const, item })) : [])] : [];
+
   const categories = useQuery({ queryKey: ['categories', household.data?.id], queryFn: () => api<Category[]>('/households/current/categories'), enabled: !!household.data, retry: false });
   const matches = useQuery({ queryKey: ['transferMatches', household.data?.id, transferName.trim().toLowerCase()], enabled: !!household.data && !!transfer && !!transferName.trim(), retry: false, queryFn: async () => {
     const found: InventoryItem[] = []; let page = 1; let total = 0;
@@ -52,7 +65,9 @@ export default function ShoppingScreen() {
     ]);
   }
   if (!household.isPending && !household.isError && !household.data) return <HouseholdScreen />;
-  return <View style={ui.screen}><FoundationScreen title="Shopping" description="" hideHeading fill testID="shopping-scroll" topPadding={8} bottomPadding={FAB_SCROLL_END_PADDING + (width >= 1000 ? insets?.bottom ?? 0 : 0)}>
+  return <View style={ui.screen}><FoundationScreen title="Shopping" description="" hideHeading fill testID="shopping-scroll" topPadding={8} bottomPadding={FAB_SCROLL_END_PADDING + (width >= 1000 ? insets?.bottom ?? 0 : 0)} list={{ data: rows, keyExtractor: row => row.key, onEndReached: () => {
+      if (pages.hasNextPage && !pages.isFetching && (showPurchased || (list.data?.filter(item => item.status === 'ToBuy').length ?? 0) < toBuyCount)) void pages.fetchNextPage();
+    }, renderItem: row => row.kind === 'item' ? renderItem(row.item!, row.item!.status === 'Purchased' && expandedPurchaseId === row.item!.id) : row.kind === 'to-buy' ? <Section title="To buy" count={toBuyCount} /> : row.kind === 'empty' ? <Text style={ui.sectionHint}>Everything is checked off.</Text> : renderPurchasedHeader() }}>
     {household.isPending ? <ActivityIndicator /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></> : <>
       <PageHeader title="Shopping" />
       {!!message && <Text accessibilityLiveRegion="polite" style={ui.feedback}>{message}</Text>}
@@ -60,17 +75,6 @@ export default function ShoppingScreen() {
       {list.isError && <View style={ui.errorCard}><Text accessibilityRole="alert" style={styles.error}>{list.error.message}{list.data ? ' Showing previously loaded items.' : ''}</Text><Action variant="secondary" title="Retry shopping list" disabled={list.isFetching} onPress={() => { list.refetch(); }} /></View>}
       {action.isError && <Text accessibilityRole="alert" style={styles.error}>{action.error.message}</Text>}
       {!list.isPending && !list.isError && list.data?.length === 0 && <View style={ui.empty}><Text style={ui.emptyTitle}>Your list is clear</Text><Text style={ui.emptyCopy}>Add the things your household needs for the next shop.</Text></View>}
-      {!!list.data?.length && <>
-        <Section title="To buy" count={list.data.filter(item => item.status === 'ToBuy').length} />
-        {list.data.filter(item => item.status === 'ToBuy').length === 0 ? <Text style={ui.sectionHint}>Everything is checked off.</Text> : list.data.filter(item => item.status === 'ToBuy').map(item => renderItem(item))}
-        {!!list.data.some(item => item.status === 'Purchased') && <>
-          <Pressable accessibilityRole="button" accessibilityLabel={showPurchased ? 'Hide purchased items' : 'Show purchased items'} accessibilityState={{ expanded: showPurchased }} onPress={() => { setShowPurchased(!showPurchased); setExpandedPurchaseId(null); setOpenItemId(null); }} style={ui.purchasedHeader}>
-            <View style={{ flex: 1 }}><Text style={ui.sectionTitle}>Purchased</Text><Text style={ui.sectionHint}>{list.data.filter(item => item.status === 'Purchased').length} {list.data.filter(item => item.status === 'Purchased').length === 1 ? 'item' : 'items'} · saved for your history</Text></View>
-            <SymbolView name={{ ios: showPurchased ? 'chevron.up' : 'chevron.down', android: showPurchased ? 'expand_less' : 'expand_more', web: showPurchased ? 'expand_less' : 'expand_more' }} tintColor={colors.muted} size={22} />
-          </Pressable>
-          {showPurchased && list.data.filter(item => item.status === 'Purchased').map(item => renderItem(item, expandedPurchaseId === item.id))}
-        </>}
-      </>}
       <Modal visible={!!detail && !editing} animationType="slide" transparent onRequestClose={() => setDetail(null)}>
         <View style={ui.modalBackdrop}><View style={ui.modalCard}>
           <PageHeader title={detail?.name ?? 'Shopping item'} action={<Pressable accessibilityRole="button" accessibilityLabel="Close item details" onPress={() => setDetail(null)} style={ui.close}><Text style={ui.closeText}>×</Text></Pressable>} />
@@ -128,6 +132,11 @@ export default function ShoppingScreen() {
 
     {!!household.data && !transfer && <FloatingActionButton label="Add shopping item" bottomInset={width >= 1000 ? insets?.bottom ?? 0 : 0} onPress={() => { closeEdit(); setOpenItemId(null); setAdding(true); }} testID="shopping-fab" />}
   </View>;
+
+  function renderPurchasedHeader() { return <Pressable accessibilityRole="button" accessibilityLabel={showPurchased ? 'Hide purchased items' : 'Show purchased items'} accessibilityState={{ expanded: showPurchased }} onPress={() => { setShowPurchased(!showPurchased); setExpandedPurchaseId(null); setOpenItemId(null); }} style={ui.purchasedHeader}>
+            <View style={{ flex: 1 }}><Text style={ui.sectionTitle}>Purchased</Text><Text style={ui.sectionHint}>{purchasedCount} {purchasedCount === 1 ? 'item' : 'items'} · saved for your history</Text></View>
+            <SymbolView name={{ ios: showPurchased ? 'chevron.up' : 'chevron.down', android: showPurchased ? 'expand_less' : 'expand_more', web: showPurchased ? 'expand_less' : 'expand_more' }} tintColor={colors.muted} size={22} />
+          </Pressable>; }
 
   function renderItem(item: ShoppingItem, purchasedExpanded = false) {
     const purchased = item.status === 'Purchased';

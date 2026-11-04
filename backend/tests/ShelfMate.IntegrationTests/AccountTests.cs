@@ -505,6 +505,26 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.NotNull(linked.LinkedInventoryItemId);
         Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsJsonAsync($"{ShoppingPath}/{item.Id}/purchase", new PurchaseRequest(linked.Version, false, Guid.NewGuid()))).StatusCode);
     }
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ShoppingTransferRejectsMissingNestedItemWithoutCreatingInventory(bool includeNull)
+    {
+        var (client, _) = await Register("owner"); await Create(client);
+        var create = await client.PostAsJsonAsync("/api/v1/households/current/shopping-items", new SaveShoppingRequest("Milk"));
+        var item = (await create.Content.ReadFromJsonAsync<ShoppingResult>())!;
+        var purchased = await client.PostAsJsonAsync($"/api/v1/households/current/shopping-items/{item.Id}/purchase", new PurchaseRequest(item.Version, true, Guid.NewGuid()));
+        item = (await purchased.Content.ReadFromJsonAsync<ShoppingResult>())!;
+        var body = new Dictionary<string, object?> { ["version"] = item.Version };
+        if (includeNull) body["item"] = null;
+        var result = await client.PostAsJsonAsync($"/api/v1/households/current/shopping-items/{item.Id}/transfer-to-inventory", body);
+        Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal("application/problem+json", result.Content.Headers.ContentType?.MediaType);
+        Assert.Empty((await client.GetFromJsonAsync<InventoryPage>(InventoryPath))!.Items);
+        var retry = await client.PostAsJsonAsync($"/api/v1/households/current/shopping-items/{item.Id}/transfer-to-inventory", new TransferRequest(item.Version, Product()));
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+    }
+
     [Fact]
     public async Task ShoppingRequiresDuplicateReviewAndProtectsOtherHouseholds()
     {

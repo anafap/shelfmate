@@ -87,6 +87,7 @@ public sealed class ShoppingService(ShelfMateDbContext db, IAccountService accou
         if (item.LinkedInventoryItemId is Guid linked) { await tx.CommitAsync(); return await inventory.Get(userId, linked); }
         Version(item, request.Version);
         if (item.Status != "Purchased") throw Error(409, "Mark this item purchased before transferring it.");
+        if (request.Item is null) throw Error(400, "Inventory item details are required.");
         var name = request.Item.Name?.Trim().ToLowerInvariant() ?? "";
         // Serialize same-name checks across different shopping rows, so simultaneous transfers also require review.
         await db.Households.FromSqlInterpolated($"SELECT * FROM \"Households\" WHERE \"Id\" = {household} FOR UPDATE").SingleAsync();

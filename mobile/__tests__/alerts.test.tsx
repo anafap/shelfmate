@@ -7,10 +7,12 @@ import { registerPushDevice } from '@/lib/push';
 jest.mock('@/lib/session', () => ({ api: jest.fn() }));
 jest.mock('@/lib/push', () => ({ registerPushDevice: jest.fn(async () => false) }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
-jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: { id: 'home' }, isPending: false, isError: false }) }));
+let mockHousehold = { data: { id: 'home' } as { id: string } | undefined, isPending: false, isError: false, error: new Error('Household unavailable') };
+jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => mockHousehold }));
 let preferences: Preferences;
 const item = { id: 'milk', name: 'Milk', quantity: 1, unit: 'bottle', expiryType: 'Printed', expiryDate: '2026-10-13', expiryStatus: 'ExpiringSoon', daysRemaining: 1, status: 'Active' };
 beforeEach(() => {
+  mockHousehold = { data: { id: 'home' }, isPending: false, isError: false, error: new Error('Household unavailable') };
   jest.clearAllMocks(); preferences = { pushEnabled: false, inAppEnabled: true, dayOffsets: [7, 3, 1, 0], mutedCategoryIds: [], localDeliveryTime: '09:00' };
   jest.mocked(api).mockImplementation(async (path, body) => {
     if (path === '/me/notification-preferences') { if (body) preferences = body as Preferences; return preferences as never; }
@@ -88,5 +90,14 @@ test('alerts show the server total and reach later eligible items on scroll', as
   await fireEvent(screen.getByTestId('alerts-list'), 'endReached');
   expect(await screen.findByText('Rice')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Refresh alerts' })).toBeTruthy();
+  client.clear();
+});
+
+test('household loading retains its existing loading state without a premature refresh action', async () => {
+  mockHousehold = { data: undefined, isPending: true, isError: false, error: new Error('Household unavailable') };
+  const client = await setup();
+  expect(await screen.findByLabelText('Loading household')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Refresh alerts' })).toBeNull();
+  expect(screen.queryByText('Milk')).toBeNull();
   client.clear();
 });

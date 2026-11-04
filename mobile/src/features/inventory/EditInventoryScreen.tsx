@@ -56,7 +56,6 @@ export default function EditInventoryScreen() {
     layout="editor"
     saveLabel="Save Changes"
     onCancel={returnToInventory}
-    onReload={() => {}}
     onSaved={async () => {
       await invalidateResource(client, 'inventory', householdId);
       returnToInventory();
@@ -66,7 +65,7 @@ export default function EditInventoryScreen() {
 
 // Keep the reviewed record/version with its draft until an explicit conflict reload.
 // Background refetches must not replace unsaved fields or silently advance their version.
-function ProductEditor(props: React.ComponentProps<typeof InventoryForm>) {
-  const [item, setItem] = useState(props.item!);
+function ProductEditor(props: Omit<React.ComponentProps<typeof InventoryForm>, 'item' | 'onReload'> & { item: InventoryItem }) {
+  const [item, setItem] = useState(props.item);
   return <InventoryForm {...props} key={item.version} item={item} onReload={setItem} />;
 }

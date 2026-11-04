@@ -20,9 +20,9 @@ export default function AlertsScreen() {
   const alerts = { ...pages, data: uniquePageItems(pages.data?.pages) };
 
   if (!household.isPending && !household.isError && !household.data) return <HouseholdScreen />;
-  return <FoundationScreen title="Alerts" description="" hideHeading fill topPadding={8} testID="alerts-list" list={{ data: alerts.data ?? [], keyExtractor: item => item.id,
+  return <FoundationScreen title="Alerts" description="" hideHeading fill topPadding={8} testID="alerts-list" list={{ data: household.isPending || household.isError ? [] : alerts.data ?? [], keyExtractor: item => item.id,
     onEndReached: () => { if (pages.hasNextPage && !pages.isFetching) void pages.fetchNextPage(); },
-    footer: <Action variant="secondary" title="Refresh alerts" disabled={alerts.isFetching} onPress={() => { alerts.refetch(); preferences.refetch(); }} />,
+    footer: !household.isPending && !household.isError ? <Action variant="secondary" title="Refresh alerts" disabled={alerts.isFetching} onPress={() => { alerts.refetch(); preferences.refetch(); }} /> : null,
     renderItem: item => <Link key={item.id} href={{ pathname: '/inventory', params: { itemId: item.id } }} asChild>
           <Pressable accessibilityRole="button" accessibilityLabel={`Review ${item.name}`} style={StyleSheet.flatten([ui.item, ui[expiryTone(item)]])}>
             <View style={pageUi.copy}><Text style={ui.name}>{item.name}</Text><Text style={ui.urgency}>{expiryLabel(item)}</Text>

@@ -65,7 +65,7 @@ export default function ShoppingScreen() {
     ]);
   }
   if (!household.isPending && !household.isError && !household.data) return <HouseholdScreen />;
-  return <View style={ui.screen}><FoundationScreen title="Shopping" description="" hideHeading fill testID="shopping-scroll" topPadding={8} bottomPadding={FAB_SCROLL_END_PADDING + (width >= 1000 ? insets?.bottom ?? 0 : 0)} list={{ data: rows, keyExtractor: row => row.key, onEndReached: () => {
+  return <View style={ui.screen}><FoundationScreen title="Shopping" description="" hideHeading fill testID="shopping-scroll" topPadding={8} bottomPadding={FAB_SCROLL_END_PADDING + (width >= 1000 ? insets?.bottom ?? 0 : 0)} list={{ data: household.isPending || household.isError ? [] : rows, keyExtractor: row => row.key, onEndReached: () => {
       if (pages.hasNextPage && !pages.isFetching && (showPurchased || (list.data?.filter(item => item.status === 'ToBuy').length ?? 0) < toBuyCount)) void pages.fetchNextPage();
     }, renderItem: row => row.kind === 'item' ? renderItem(row.item!, row.item!.status === 'Purchased' && expandedPurchaseId === row.item!.id) : row.kind === 'to-buy' ? <Section title="To buy" count={toBuyCount} /> : row.kind === 'empty' ? <Text style={ui.sectionHint}>Everything is checked off.</Text> : renderPurchasedHeader() }}>
     {household.isPending ? <ActivityIndicator /> : household.isError ? <><Text style={styles.error}>{household.error.message}</Text><Action title="Retry household" onPress={() => { household.refetch(); }} /></> : <>

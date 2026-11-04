@@ -7,12 +7,13 @@ import { inventoryPath } from '@/features/inventory/types';
 import { api } from '@/lib/session';
 jest.mock('@/lib/session', () => ({ api: jest.fn() }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
-jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: { id: 'home' }, isPending: false, isError: false }) }));
+let mockHousehold = { data: { id: 'home' } as { id: string } | undefined, isPending: false, isError: false, error: new Error('Household unavailable') };
+jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => mockHousehold }));
 const base = { id: 'milk', name: 'Milk', householdId: 'home', quantity: 1, unit: 'bottle', categoryId: 'dairy', notes: null, status: 'ToBuy', version: 'v1', purchasedByName: null, purchasedAt: null, linkedInventoryItemId: null } as ShoppingItem;
 let items: ShoppingItem[] = [];
 const path = '/households/current/shopping-items';
 function pageResult() { return { items, total: items.length, page: 1, pageSize: 50, toBuyCount: items.filter(x => x.status === 'ToBuy').length, purchasedCount: items.filter(x => x.status === 'Purchased').length }; }
-beforeEach(() => { jest.clearAllMocks(); items = []; jest.mocked(api).mockImplementation(async (url, body) => {
+beforeEach(() => { mockHousehold = { data: { id: 'home' }, isPending: false, isError: false, error: new Error('Household unavailable') }; jest.clearAllMocks(); items = []; jest.mocked(api).mockImplementation(async (url, body) => {
   if (url === '/households/current/categories') return [{ id: 'dairy', key: 'dairy', name: 'Dairy' }] as never;
   if (url.startsWith(`${inventoryPath}?`)) return { items: [], total: 0, page: 1, pageSize: 100 } as never;
   if (url.startsWith(`${path}/page`) && body === undefined) return pageResult() as never;
@@ -155,5 +156,14 @@ test('scrolling loads later shopping pages without changing checklist actions or
   expect(await screen.findByRole('checkbox', { name: 'Mark Bread purchased' })).toBeTruthy();
   expect(screen.getAllByRole('checkbox', { name: 'Mark Milk purchased' })).toHaveLength(1);
   await waitFor(() => expect(api).toHaveBeenCalledWith(`${path}/page?page=2&pageSize=50`));
+  client.clear();
+});
+
+test('a failed household lookup keeps the existing error state without rendering checklist rows', async () => {
+  items = [base]; mockHousehold.isError = true;
+  const client = await setup();
+  await screen.findByText('Household unavailable');
+  await waitFor(() => expect(api).toHaveBeenCalledWith(`${path}/page?page=1&pageSize=50`));
+  expect(screen.queryByRole('checkbox', { name: 'Mark Milk purchased' })).toBeNull();
   client.clear();
 });

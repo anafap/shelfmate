@@ -22,6 +22,9 @@ export function HouseholdHeader() {
   return <View style={ui.header}>
     <View style={ui.brandRow}>
       <Text accessibilityRole="header" style={ui.brand}>ShelfMate</Text>
+      {home && <Pressable accessibilityRole="button" accessibilityLabel={dashboardFetching ? 'Refreshing home' : 'Refresh home'} accessibilityState={{ disabled: dashboardFetching }} disabled={dashboardFetching} onPress={() => { void queryClient.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} style={ui.refreshButton}>
+        <SymbolView name={{ ios: 'arrow.clockwise', android: 'refresh', web: 'refresh' }} tintColor={palette.green} size={18} />
+      </Pressable>}
       <Link href="/settings" asChild>
         <Pressable accessibilityRole="button" accessibilityLabel="Settings" style={ui.settingsButton}>
           <SymbolView name={{ ios: 'gearshape.fill', android: 'settings', web: 'settings' }} tintColor={palette.ink} size={21} />
@@ -44,9 +47,7 @@ export function HouseholdHeader() {
         <View style={[ui.syncDot, disconnected && ui.syncDotDisconnected]} />
         <Text style={[ui.syncText, disconnected && ui.syncTextDisconnected]}>{disconnected ? 'Offline' : live ? 'Live' : 'Syncing'}</Text>
       </View>
-      {home && <Pressable accessibilityRole="button" accessibilityLabel={dashboardFetching ? 'Refreshing home' : 'Refresh home'} accessibilityState={{ disabled: dashboardFetching }} disabled={dashboardFetching} onPress={() => { void queryClient.invalidateQueries({ queryKey: ['dashboard', household.data?.id] }); }} style={ui.refreshButton}>
-        <SymbolView name={{ ios: 'arrow.clockwise', android: 'refresh', web: 'refresh' }} tintColor={palette.green} size={18} />
-      </Pressable>}
+
     </View> : <Text style={ui.setupText}>Set up your household</Text>}
   </View>;
 }
@@ -55,7 +56,7 @@ const palette = { ink: colors.ink, green: colors.green, border: colors.border, m
 const ui = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 3, paddingBottom: 5, gap: 0, backgroundColor: colors.background },
   brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brand: { flexShrink: 1, marginRight: 12, color: palette.green, fontSize: 25, lineHeight: 31, fontWeight: '800', letterSpacing: -0.8 },
+  brand: { flex: 1, marginRight: 12, color: palette.green, fontSize: 25, lineHeight: 31, fontWeight: '800', letterSpacing: -0.8 },
   settingsButton: { flexShrink: 0, width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#edf2ef' },
   detailsRow: { minHeight: 48, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   householdChip: { minHeight: 48, flexGrow: 1, flexShrink: 1, flexBasis: 150, minWidth: 120, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 20, backgroundColor: colors.surface },

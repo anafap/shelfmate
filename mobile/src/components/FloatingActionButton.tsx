@@ -1,5 +1,4 @@
 import { colors } from '@/theme/tokens';
-import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 export const FAB_SIZE = 56;
@@ -26,17 +25,25 @@ export function FloatingActionButton({ label, expanded = false, onPress, onDismi
       accessibilityLabel={expanded ? 'Close add menu' : label}
       accessibilityState={{ expanded }}
       testID={testID ? `${testID}-button` : undefined}
-      style={[ui.button, { bottom: FAB_EDGE_OFFSET + bottomInset }]}
+      style={({ pressed }) => [ui.button, { bottom: FAB_EDGE_OFFSET + bottomInset }, pressed && ui.pressed]}
       onPress={onPress}
     >
-      <SymbolView name={expanded ? { ios: 'xmark', android: 'close', web: 'close' } : { ios: 'plus', android: 'add', web: 'add' }} tintColor={colors.surface} size={28} />
+      <View accessible={false} pointerEvents="none" style={[ui.icon, expanded && ui.closeIcon]}>
+        <View style={ui.horizontalStroke} />
+        <View style={ui.verticalStroke} />
+      </View>
     </Pressable>
   </View>;
 }
 
 const ui = StyleSheet.create({
   layer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  button: { position: 'absolute', right: FAB_EDGE_OFFSET, width: FAB_SIZE, height: FAB_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: FAB_SIZE / 2, backgroundColor: '#008b50', borderWidth: 2, borderColor: colors.surface, elevation: 6, shadowColor: colors.ink, shadowOpacity: 0.22, shadowRadius: 7, shadowOffset: { width: 0, height: 2 } },
+  button: { position: 'absolute', right: FAB_EDGE_OFFSET, width: FAB_SIZE, height: FAB_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: FAB_SIZE / 2, backgroundColor: colors.green, borderWidth: 2, borderColor: colors.surface, elevation: 6, shadowColor: colors.ink, shadowOpacity: 0.22, shadowRadius: 7, shadowOffset: { width: 0, height: 2 } },
+  pressed: { opacity: 0.8 },
+  icon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  closeIcon: { transform: [{ rotate: '45deg' }] },
+  horizontalStroke: { position: 'absolute', width: 24, height: 2, borderRadius: 1, backgroundColor: colors.surface },
+  verticalStroke: { position: 'absolute', width: 2, height: 24, borderRadius: 1, backgroundColor: colors.surface },
   menuOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, justifyContent: 'flex-end', alignItems: 'flex-end', paddingHorizontal: FAB_EDGE_OFFSET },
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(13, 35, 27, 0.28)' },
   menuSlot: { position: 'absolute', left: FAB_EDGE_OFFSET, right: FAB_EDGE_OFFSET, alignItems: 'flex-end' },

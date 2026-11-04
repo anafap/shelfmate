@@ -67,7 +67,7 @@ export default function DashboardScreen() {
         <Text style={ui.emptyTitle}>{data.activeCount === 0 ? 'Your shelves are ready' : 'Nothing needs prioritizing'}</Text>
         <Text style={ui.emptyText}>{data.activeCount === 0 ? 'Add a product to start your household inventory.' : 'Active products have no dates in your reminder window.'}</Text>
       </View> : <View style={[ui.productList, wide && ui.productListWide]}>
-        {data.useFirst.slice(0, 3).map(item => <ProductCard key={item.id} item={item} category={categories.data?.find(c => c.id === item.categoryId)?.name} />)}
+        {data.useFirst.slice(0, 3).map(item => <ProductCard key={item.id} item={item} category={categories.data?.find(c => c.id === item.categoryId)?.name} wide={wide} />)}
       </View>}
 
       <View style={ui.sectionHeading}>
@@ -123,11 +123,11 @@ function Metric({ label, helper, count, tone }: { label: string; helper: string;
   </View>;
 }
 
-function ProductCard({ item, category }: { item: InventoryItem; category?: string }) {
+function ProductCard({ item, category, wide }: { item: InventoryItem; category?: string; wide: boolean }) {
   const label = naturalExpiry(item);
   const tone = expiryTone(item);
   return <Link href={{ pathname: '/inventory', params: { itemId: item.id } }} asChild>
-    <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}, ${label}, ${item.quantity} ${item.unit}`} style={StyleSheet.flatten([ui.productCard, tone === 'red' && ui.productCard_red])}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}, ${label}, ${item.quantity} ${item.unit}`} style={StyleSheet.flatten([ui.productCard, wide && ui.productCardWide, tone === 'red' && ui.productCard_red])}>
       <View style={ui.productIcon}><SymbolView name={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }} tintColor={palette.green} size={28} /></View>
       <View style={ui.productCopy}>
         <View style={ui.productTopline}>
@@ -165,24 +165,25 @@ const ui = StyleSheet.create({
   metric_green: { backgroundColor: '#eaf6ed' },
   metricCount: { marginTop: 1, color: palette.ink, fontSize: 26, lineHeight: 30, fontWeight: '800', fontVariant: ['tabular-nums'] },
   metricLabel: { color: palette.ink, textAlign: 'center', fontSize: 13, fontWeight: '700' },
-  metricHelper: { color: palette.muted, textAlign: 'center', fontSize: 11 },
+  metricHelper: { color: palette.muted, textAlign: 'center', fontSize: 13, lineHeight: 18 },
   todayLine: { minHeight: 34, marginTop: -5, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8 },
   todayText: { flex: 1, color: palette.ink, fontSize: 14, fontWeight: '700' },
   todayCount: { color: palette.ink, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] },
   sectionHeading: { minHeight: 42, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: -5 },
   sectionTitle: { flex: 1, flexShrink: 1, color: palette.ink, fontSize: 21, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4 },
-  viewAll: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 4 },
+  viewAll: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 4 },
   viewAllText: { color: palette.ink, fontSize: 14 },
   productList: { gap: 7 },
   productListWide: { flexDirection: 'row', flexWrap: 'wrap' },
-  productCard: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, minHeight: 78, flexGrow: 1, flexBasis: 300, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  productCard: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, minHeight: 78,  borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: '#f0f3f1', shadowColor: '#18382b', shadowOpacity: 0.035, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  productCardWide: { flexGrow: 1, flexBasis: 300 },
   productCard_red: { backgroundColor: '#fff4f2', borderColor: '#f5dfdc' },
   productIcon: { width: 44, height: 44, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#f3f7f4' },
   productCopy: { flex: 1, minWidth: 0, gap: 1 },
   productTopline: { minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  productName: { flex: 1, minWidth: 90, color: palette.ink, fontSize: 16, lineHeight: 21, fontWeight: '800' },
+  productName: { flex: 1, minWidth: 0, flexBasis: '100%', color: palette.ink, fontSize: 16, lineHeight: 21, fontWeight: '800' },
   cardChevron: { width: 24, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
-  expiryPill: { maxWidth: '100%', flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 14 },
+  expiryPill: { maxWidth: '100%', flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 14 },
   expiry_red: { backgroundColor: '#ffe9e7' },
   expiry_orange: { backgroundColor: '#fff0e3' },
   expiry_amber: { backgroundColor: '#fff4dc' },

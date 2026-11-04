@@ -46,7 +46,7 @@ export const styles = StyleSheet.create({
   body: { ...pageUi.body },
   input: { ...controlUi.frame, ...controlUi.value },
   button: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: colors.surface, fontSize: 15, fontWeight: '600' },
+  buttonText: { textAlign: 'center', color: colors.surface, fontSize: 15, fontWeight: '600' },
   secondaryButton: { backgroundColor: '#f0f5f1', borderWidth: 1, borderColor: '#dce6df' },
   secondaryText: { color: colors.green },
   dangerButton: { backgroundColor: '#fff4f1', borderWidth: 1, borderColor: '#f0d4ce' },

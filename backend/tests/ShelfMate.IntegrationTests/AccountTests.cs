@@ -291,6 +291,30 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, (await anonymous.PostAsJsonAsync("/api/v1/auth/revoke", new RefreshRequest("invalid"))).StatusCode);
     }
 
+    [Fact]
+    public async Task AccountLoginThrottleIsSharedWithoutExpiringExistingSessions()
+    {
+        var (owner, original) = await Register("owner"); var (other, _) = await Register("other");
+        for (var i = 0; i < 10; i++)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await owner.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "wrong"))).StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await other.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await other.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("other@example.com", "LongEnoughPassword123!"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(original.RefreshToken))).StatusCode);
+        clock.Advance(TimeSpan.FromMinutes(1));
+        Assert.Equal(HttpStatusCode.OK, (await owner.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task ConcurrentBadPasswordsCannotBypassTheAccountFailureLimit()
+    {
+        var (owner, _) = await Register("owner");
+        for (var i = 0; i < 9; i++) await owner.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "wrong"));
+        var responses = await Task.WhenAll(owner.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "wrong")), owner.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "wrong")));
+        Assert.Single(responses, response => response.StatusCode == HttpStatusCode.Unauthorized);
+        Assert.Single(responses, response => response.StatusCode == HttpStatusCode.TooManyRequests);
+    }
+
     private WebApplicationFactory<Program> VerificationFactory(VerificationDelivery delivery) => factory.WithWebHostBuilder(host =>
     {
         host.UseSetting("EmailVerification:Enabled", "true");

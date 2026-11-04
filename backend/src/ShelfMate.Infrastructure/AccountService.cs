@@ -52,15 +52,31 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock, IO
     {
         var email = Email(request.Email);
         if (request.Password is null || request.Password.Length > 128) throw Error(401, "Email or password is incorrect.");
-        var user = await db.Users.SingleOrDefaultAsync(x => x.Email == email);
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var user = await db.Users.FromSqlInterpolated($"SELECT * FROM \"Users\" WHERE \"Email\" = {email} FOR UPDATE").SingleOrDefaultAsync();
         // Perform password hashing even for unknown accounts to reduce account timing differences.
         if (user is null)
         {
             hasher.HashPassword(new User(), request.Password);
             throw Error(401, "Email or password is incorrect.");
         }
+        var now = Now;
+        if (user.FailedLoginWindowStartedAt is null || user.FailedLoginWindowStartedAt <= now.AddMinutes(-1))
+        {
+            user.FailedLoginCount = 0;
+            user.FailedLoginWindowStartedAt = now;
+        }
+        if (user.FailedLoginCount >= 10) throw Error(429, "Too many sign-in attempts for this account. Try again in a minute.");
         var verification = hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-        if (verification == PasswordVerificationResult.Failed) throw Error(401, "Email or password is incorrect.");
+        if (verification == PasswordVerificationResult.Failed)
+        {
+            user.FailedLoginCount++;
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+            throw Error(401, "Email or password is incorrect.");
+        }
+        user.FailedLoginCount = 0;
+        user.FailedLoginWindowStartedAt = null;
         if (verification == PasswordVerificationResult.SuccessRehashNeeded)
         {
             user.PasswordHash = hasher.HashPassword(user, request.Password);
@@ -68,6 +84,7 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock, IO
         }
         var result = NewSession(user);
         await db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return result;
     }
 

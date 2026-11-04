@@ -6,6 +6,8 @@ public sealed class User
     public string DisplayName { get; set; } = "";
     public string Email { get; set; } = "";
     public string PasswordHash { get; set; } = "";
+    public int FailedLoginCount { get; set; }
+    public DateTimeOffset? FailedLoginWindowStartedAt { get; set; }
     public DateTimeOffset? EmailVerifiedAt { get; set; }
     public string? EmailVerificationTokenHash { get; set; }
     public DateTimeOffset? EmailVerificationExpiresAt { get; set; }

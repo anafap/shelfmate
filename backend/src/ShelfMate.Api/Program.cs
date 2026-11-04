@@ -16,6 +16,9 @@ builder.Services.AddDbContext<ShelfMateDbContext>(options =>
 builder.Services.AddScoped<IDatabaseAvailability, DatabaseAvailability>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.Configure<EmailVerificationOptions>(builder.Configuration.GetSection("EmailVerification"));
+builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
+builder.Services.AddSingleton<IEmailVerificationDelivery, UnconfiguredEmailVerificationDelivery>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IShoppingService, ShoppingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
@@ -86,6 +89,12 @@ app.Use(async (context, next) =>
 });
 app.MapHub<HouseholdHub>("/hubs/household", options => options.CloseOnAuthenticationExpiration = true);
 app.MapAccounts();
+if (builder.Configuration.GetValue<bool>("EmailVerification:Enabled"))
+{
+    if (app.Services.GetRequiredService<IEmailVerificationDelivery>() is UnconfiguredEmailVerificationDelivery)
+        throw new InvalidOperationException("Email verification requires a configured delivery adapter and an approved client workflow before activation.");
+    app.MapEmailVerification();
+}
 app.MapInventory();
 app.MapShopping();
 app.MapNotifications();

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,7 +10,7 @@ using ShelfMate.Domain;
 
 namespace ShelfMate.Infrastructure;
 
-public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : IAccountService
+public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock, IOptions<EmailVerificationOptions> emailVerification) : IAccountService
 {
     private readonly PasswordHasher<User> hasher = new();
     private DateTimeOffset Now => clock.GetUtcNow();
@@ -224,6 +225,8 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
         var invite = await db.Invites.SingleAsync(x => x.TokenHash == hash);
         if (invite.RevokedAt is not null || invite.RedeemedAt is not null || invite.ExpiresAt <= Now) throw Error(400, "Invitation is invalid or no longer available.");
         if (invite.InvitedEmail is not null && invite.InvitedEmail != (await db.Users.SingleAsync(x => x.Id == userId)).Email) throw Error(403, "This invitation is for a different email address.");
+        if (emailVerification.Value.Enabled && invite.InvitedEmail is not null && (await db.Users.SingleAsync(x => x.Id == userId)).EmailVerifiedAt is null)
+            throw Error(403, "Verify your email before using this email-specific invitation.");
         if (await db.Members.AnyAsync(x => x.UserId == userId)) throw Error(409, "You already belong to a household.");
         db.Members.Add(new HouseholdMember { HouseholdId = householdId, UserId = userId, JoinedAt = Now });
         invite.RedeemedAt = Now;

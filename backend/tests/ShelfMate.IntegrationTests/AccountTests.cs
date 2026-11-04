@@ -291,6 +291,92 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, (await anonymous.PostAsJsonAsync("/api/v1/auth/revoke", new RefreshRequest("invalid"))).StatusCode);
     }
 
+    private WebApplicationFactory<Program> VerificationFactory(VerificationDelivery delivery) => factory.WithWebHostBuilder(host =>
+    {
+        host.UseSetting("EmailVerification:Enabled", "true");
+        host.ConfigureServices(services =>
+        {
+            services.RemoveAll<IEmailVerificationDelivery>();
+            services.AddSingleton<IEmailVerificationDelivery>(delivery);
+        });
+    });
+
+    [Fact]
+    public async Task EmailVerificationIsDisabledByDefaultAndCannotActivateWithoutDelivery()
+    {
+        var (client, _) = await Register("owner");
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/api/v1/me/email-verification", null)).StatusCode);
+        await using var unconfigured = factory.WithWebHostBuilder(host => host.UseSetting("EmailVerification:Enabled", "true"));
+        Assert.Throws<InvalidOperationException>(() => unconfigured.CreateClient());
+    }
+
+    [Fact]
+    public async Task PreparedEmailVerificationRequiresMailboxCodeBeforeEmailSpecificInviteRedemption()
+    {
+        var (owner, _) = await Register("owner"); var household = await Create(owner);
+        var (_, memberSession) = await Register("member");
+        var (_, outsiderSession) = await Register("outsider");
+        var invite = await Invite(owner, "member@example.com");
+        var delivery = new VerificationDelivery();
+        await using var enabled = VerificationFactory(delivery);
+        var member = enabled.CreateClient(); member.DefaultRequestHeaders.Authorization = new("Bearer", memberSession.AccessToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await enabled.CreateClient().PostAsync("/api/v1/me/email-verification", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Redeem(member, invite.Token)).StatusCode);
+        var request = await member.PostAsync("/api/v1/me/email-verification", null);
+        Assert.Equal(HttpStatusCode.Accepted, request.StatusCode);
+        Assert.Equal("MEMBER@EXAMPLE.COM", delivery.Recipient);
+        Assert.Equal(64, delivery.Token.Length);
+        Assert.DoesNotContain(delivery.Token, await request.Content.ReadAsStringAsync());
+        using (var scope = factory.Services.CreateScope())
+        {
+            var user = await scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>().Users.SingleAsync(x => x.Id == memberSession.User.Id);
+            Assert.NotEqual(delivery.Token, user.EmailVerificationTokenHash);
+            Assert.Null(user.EmailVerifiedAt);
+        }
+        var outsider = enabled.CreateClient(); outsider.DefaultRequestHeaders.Authorization = new("Bearer", outsiderSession.AccessToken);
+        Assert.Equal(HttpStatusCode.BadRequest, (await outsider.PostAsJsonAsync("/api/v1/me/email-verification/confirm", new ConfirmEmailRequest(delivery.Token))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync("/api/v1/me/email-verification/confirm", new ConfirmEmailRequest(new string('A', 64)))).StatusCode);
+        var confirmation = await member.PostAsJsonAsync("/api/v1/me/email-verification/confirm", new ConfirmEmailRequest(delivery.Token));
+        Assert.True((await confirmation.Content.ReadFromJsonAsync<EmailVerificationStatus>())!.Verified);
+        Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync("/api/v1/me/email-verification/confirm", new ConfirmEmailRequest(delivery.Token))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Redeem(member, invite.Token)).StatusCode);
+        Assert.Equal(household.Id, (await member.GetFromJsonAsync<HouseholdResult>("/api/v1/households/current"))!.Id);
+    }
+
+    [Fact]
+    public async Task PreparedEmailCodesExpireAndConcurrentRequestsAndConfirmationsHaveOneWinner()
+    {
+        var (_, session) = await Register("member"); var delivery = new VerificationDelivery();
+        await using var enabled = VerificationFactory(delivery);
+        var member = enabled.CreateClient(); member.DefaultRequestHeaders.Authorization = new("Bearer", session.AccessToken);
+        var requests = await Task.WhenAll(member.PostAsync("/api/v1/me/email-verification", null), member.PostAsync("/api/v1/me/email-verification", null));
+        Assert.Single(requests, result => result.StatusCode == HttpStatusCode.Accepted);
+        Assert.Single(requests, result => result.StatusCode == HttpStatusCode.TooManyRequests);
+        Assert.Equal(1, delivery.Sends);
+        var expired = delivery.Token;
+        clock.Advance(TimeSpan.FromMinutes(20));
+        var rotatedResponse = await member.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(session.RefreshToken));
+        member.DefaultRequestHeaders.Authorization = new("Bearer", (await rotatedResponse.Content.ReadFromJsonAsync<SessionResult>())!.AccessToken);
+        Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync("/api/v1/me/email-verification/confirm", new ConfirmEmailRequest(expired))).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await member.PostAsync("/api/v1/me/email-verification", null)).StatusCode);
+        Assert.NotEqual(expired, delivery.Token);
+        var confirmations = await Task.WhenAll(member.PostAsJsonAsync("/api/v1/me/email-verification/confirm", new ConfirmEmailRequest(delivery.Token)), member.PostAsJsonAsync("/api/v1/me/email-verification/confirm", new ConfirmEmailRequest(delivery.Token)));
+        Assert.Single(confirmations, result => result.StatusCode == HttpStatusCode.OK);
+        Assert.Single(confirmations, result => result.StatusCode == HttpStatusCode.BadRequest);
+    }
+
+    private sealed class VerificationDelivery : IEmailVerificationDelivery
+    {
+        public string Recipient { get; private set; } = "";
+        public string Token { get; private set; } = "";
+        public int Sends { get; private set; }
+        public Task Send(string recipient, string token, DateTimeOffset expiresAt, CancellationToken cancellationToken)
+        {
+            Recipient = recipient; Token = token; Sends++;
+            return Task.CompletedTask;
+        }
+    }
+
     [Fact]
     public async Task ValidationAndUniqueMembershipAreEnforced()
     {

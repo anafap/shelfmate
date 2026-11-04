@@ -104,6 +104,7 @@ public sealed class ShelfMateDbContext(DbContextOptions<ShelfMateDbContext> opti
         {
             e.HasIndex(x => x.Email).IsUnique();
             e.Property(x => x.Email).HasMaxLength(254);
+            e.Property(x => x.EmailVerificationTokenHash).HasMaxLength(64);
             e.Property(x => x.DisplayName).HasMaxLength(80);
         });
         model.Entity<RetiredRefreshToken>(e =>

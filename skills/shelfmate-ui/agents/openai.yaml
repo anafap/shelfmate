@@ -1,0 +1,4 @@
+interface:
+  display_name: "ShelfMate UI"
+  short_description: "Keep ShelfMate screens visually consistent"
+  default_prompt: "Use $shelfmate-ui to update the requested ShelfMate screen consistently with its shared components and design baseline."

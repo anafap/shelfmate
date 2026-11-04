@@ -83,8 +83,16 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
         ValidateToken(token, 401);
         await using var transaction = await db.Database.BeginTransactionAsync();
         var hash = Hash(token);
-        var session = await db.Sessions.FromSqlInterpolated($"SELECT * FROM \"Sessions\" WHERE \"RefreshHash\" = {hash} FOR UPDATE").SingleOrDefaultAsync();
-        if (session is null || session.Revoked || session.RefreshExpiresAt <= Now) throw Error(401, "Session expired. Please sign in again.");
+        var session = await FindTokenSession(hash);
+        if (session is null || session.Revoked) throw Error(401, "Session expired. Please sign in again.");
+        if (session.RefreshHash != hash || session.RefreshExpiresAt <= Now)
+        {
+            await RevokeSession(session);
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+            throw Error(401, "Session expired. Please sign in again.");
+        }
+        db.RetiredRefreshTokens.Add(new RetiredRefreshToken { TokenHash = hash, SessionId = session.Id, RetiredAt = Now });
         var user = await db.Users.SingleAsync(x => x.Id == session.UserId);
         var access = Token(); var refresh = Token();
         session.AccessHash = Hash(access);
@@ -110,17 +118,35 @@ public sealed class AccountService(ShelfMateDbContext db, TimeProvider clock) : 
         return session is null ? null : new(session.UserId, session.Id, session.AccessExpiresAt);
     }
 
+    private async Task<Session?> FindTokenSession(string hash)
+    {
+        var id = await db.Sessions.Where(x => x.RefreshHash == hash).Select(x => x.Id)
+            .Concat(db.RetiredRefreshTokens.Where(x => x.TokenHash == hash).Select(x => x.SessionId)).FirstOrDefaultAsync();
+        return id == Guid.Empty ? null : await db.Sessions.FromSqlInterpolated($"SELECT * FROM \"Sessions\" WHERE \"Id\" = {id} FOR UPDATE").SingleOrDefaultAsync();
+    }
+
+    private async Task RevokeSession(Session session)
+    {
+        session.Revoked = true;
+        if (session.PushDeviceId is Guid deviceId)
+            await db.PushDevices.Where(x => x.Id == deviceId && x.UserId == session.UserId).ExecuteUpdateAsync(s => s.SetProperty(x => x.InvalidatedAt, Now));
+    }
+
+    public async Task Revoke(string refreshToken)
+    {
+        ValidateToken(refreshToken, 400);
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var session = await FindTokenSession(Hash(refreshToken));
+        if (session is not null) await RevokeSession(session);
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+    }
+
     public async Task Logout(Guid sessionId)
     {
-        // Serialize against refresh so logout cannot miss a concurrently rotated session.
         await using var transaction = await db.Database.BeginTransactionAsync();
         var session = await db.Sessions.FromSqlInterpolated($"SELECT * FROM \"Sessions\" WHERE \"Id\" = {sessionId} FOR UPDATE").SingleOrDefaultAsync();
-        if (session is not null)
-        {
-            session.Revoked = true;
-            if (session.PushDeviceId is Guid deviceId)
-                await db.PushDevices.Where(x => x.Id == deviceId && x.UserId == session.UserId).ExecuteUpdateAsync(s => s.SetProperty(x => x.InvalidatedAt, Now));
-        }
+        if (session is not null) await RevokeSession(session);
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
     }

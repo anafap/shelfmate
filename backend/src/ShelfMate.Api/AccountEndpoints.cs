@@ -30,6 +30,7 @@ public static class AccountEndpoints
         auth.MapPost("/register", async (RegisterRequest r, IAccountService s) => Results.Json(await s.Register(r), statusCode: 201));
         auth.MapPost("/login", (LoginRequest r, IAccountService s) => s.Login(r));
         auth.MapPost("/refresh", (RefreshRequest r, IAccountService s) => s.Refresh(r.RefreshToken));
+        auth.MapPost("/revoke", async (RefreshRequest r, IAccountService s) => { await s.Revoke(r.RefreshToken); return Results.NoContent(); });
         auth.MapPost("/logout", async (ClaimsPrincipal u, IAccountService s) => { await s.Logout(Guid.Parse(u.FindFirstValue("session")!)); return Results.NoContent(); }).RequireAuthorization();
         var api = app.MapGroup("/api/v1").RequireAuthorization();
         api.MapGet("/me", (ClaimsPrincipal u, IAccountService s) => s.Profile(User(u)));

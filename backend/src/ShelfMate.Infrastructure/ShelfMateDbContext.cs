@@ -7,6 +7,7 @@ public sealed class ShelfMateDbContext(DbContextOptions<ShelfMateDbContext> opti
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<Session> Sessions => Set<Session>();
+    public DbSet<RetiredRefreshToken> RetiredRefreshTokens => Set<RetiredRefreshToken>();
     public DbSet<Household> Households => Set<Household>();
     public DbSet<HouseholdMember> Members => Set<HouseholdMember>();
     public DbSet<HouseholdInvite> Invites => Set<HouseholdInvite>();
@@ -104,6 +105,12 @@ public sealed class ShelfMateDbContext(DbContextOptions<ShelfMateDbContext> opti
             e.HasIndex(x => x.Email).IsUnique();
             e.Property(x => x.Email).HasMaxLength(254);
             e.Property(x => x.DisplayName).HasMaxLength(80);
+        });
+        model.Entity<RetiredRefreshToken>(e =>
+        {
+            e.HasKey(x => x.TokenHash);
+            e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.HasOne<Session>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Cascade);
         });
         model.Entity<Session>(e =>
         {

@@ -475,6 +475,25 @@ namespace ShelfMate.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShelfMate.Domain.RetiredRefreshToken", b =>
+                {
+                    b.Property<string>("TokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("RetiredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TokenHash");
+
+                    b.HasIndex("SessionId");
+
+                    b.ToTable("RetiredRefreshTokens");
+                });
+
             modelBuilder.Entity("ShelfMate.Domain.Session", b =>
                 {
                     b.Property<Guid>("Id")
@@ -746,6 +765,15 @@ namespace ShelfMate.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ShelfMate.Domain.RetiredRefreshToken", b =>
+                {
+                    b.HasOne("ShelfMate.Domain.Session", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

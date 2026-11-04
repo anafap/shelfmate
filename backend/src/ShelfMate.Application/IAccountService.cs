@@ -25,6 +25,7 @@ public interface IAccountService
     Task<SessionResult> Refresh(string token);
     Task<AuthenticatedSession?> Authenticate(string token);
     Task Logout(Guid sessionId);
+    Task Revoke(string refreshToken);
     Task<UserProfile> Profile(Guid userId);
     Task<HouseholdResult> CreateHousehold(Guid userId, CreateHouseholdRequest request);
     Task<HouseholdResult> CurrentHousehold(Guid userId);

@@ -22,6 +22,13 @@ public sealed class Session
     public bool Revoked { get; set; }
 }
 
+public sealed class RetiredRefreshToken
+{
+    public string TokenHash { get; set; } = "";
+    public Guid SessionId { get; set; }
+    public DateTimeOffset RetiredAt { get; set; }
+}
+
 public sealed class Household
 {
     public Guid Id { get; set; } = Guid.NewGuid();

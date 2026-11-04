@@ -230,7 +230,11 @@ public sealed class AccountTests : IAsyncLifetime
         var rotated = (await responses.Single(r => r.IsSuccessStatusCode).Content.ReadFromJsonAsync<SessionResult>())!;
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/me")).StatusCode);
         client.DefaultRequestHeaders.Authorization = new("Bearer", rotated.AccessToken);
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(rotated.RefreshToken))).StatusCode);
+        var freshLogin = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"));
+        var fresh = (await freshLogin.Content.ReadFromJsonAsync<SessionResult>())!;
+        client.DefaultRequestHeaders.Authorization = new("Bearer", fresh.AccessToken);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/v1/auth/logout", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(rotated.RefreshToken))).StatusCode);
@@ -245,6 +249,42 @@ public sealed class AccountTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>();
         Assert.DoesNotContain(await db.Sessions.ToListAsync(), s => s.AccessHash == session.AccessToken || s.RefreshHash == session.RefreshToken);
         Assert.NotEqual("LongEnoughPassword123!", (await db.Users.SingleAsync()).PasswordHash);
+    }
+
+    [Fact]
+    public async Task RefreshReplayRevokesOnlyItsSessionAndPushDevice()
+    {
+        var (owner, original) = await Register("owner"); await Create(owner); await EnableReminders(owner);
+        var separateLogin = await owner.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"));
+        var independent = (await separateLogin.Content.ReadFromJsonAsync<SessionResult>())!;
+        var rotatedResponse = await owner.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(original.RefreshToken));
+        var rotated = (await rotatedResponse.Content.ReadFromJsonAsync<SessionResult>())!;
+        Assert.Equal(HttpStatusCode.Unauthorized, (await owner.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(original.RefreshToken))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await owner.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(rotated.RefreshToken))).StatusCode);
+        owner.DefaultRequestHeaders.Authorization = new("Bearer", independent.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync("/api/v1/me")).StatusCode);
+        Assert.False((await owner.GetFromJsonAsync<List<DeviceResult>>("/api/v1/me/push-devices"))!.Single().Active);
+        using var scope = factory.Services.CreateScope();
+        var retired = await scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>().RetiredRefreshTokens.SingleAsync();
+        Assert.NotEqual(original.RefreshToken, retired.TokenHash);
+    }
+
+    [Fact]
+    public async Task PossessionOnlyRevocationWorksAfterAccessExpiryAndRotationAndIsIdempotent()
+    {
+        var (owner, original) = await Register("owner"); await Create(owner); await EnableReminders(owner);
+        var rotatedResponse = await owner.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(original.RefreshToken));
+        var rotated = (await rotatedResponse.Content.ReadFromJsonAsync<SessionResult>())!;
+        clock.Advance(TimeSpan.FromMinutes(16));
+        var anonymous = factory.CreateClient();
+        Assert.Equal(HttpStatusCode.NoContent, (await anonymous.PostAsJsonAsync("/api/v1/auth/revoke", new RefreshRequest(new string('A', 64)))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await anonymous.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(rotated.RefreshToken))).StatusCode);
+        for (var i = 0; i < 2; i++)
+            Assert.Equal(HttpStatusCode.NoContent, (await anonymous.PostAsJsonAsync("/api/v1/auth/revoke", new RefreshRequest(original.RefreshToken))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequest(rotated.RefreshToken))).StatusCode);
+        using var scope = factory.Services.CreateScope();
+        Assert.NotNull((await scope.ServiceProvider.GetRequiredService<ShelfMateDbContext>().PushDevices.SingleAsync()).InvalidatedAt);
+        Assert.Equal(HttpStatusCode.BadRequest, (await anonymous.PostAsJsonAsync("/api/v1/auth/revoke", new RefreshRequest("invalid"))).StatusCode);
     }
 
     [Fact]

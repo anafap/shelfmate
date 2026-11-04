@@ -24,8 +24,11 @@ export default function AddInventoryScreen() {
   }} />;
   return <FoundationScreen title="Add to Inventory" description="" compact hideHeading fill topPadding={8}>
     <PageHeader title="Add to Inventory" onBack={() => router.replace('/inventory')} backLabel="Back to Inventory" />
-    {!household.data && (household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : <Text style={styles.body}>Create or join a household before adding inventory.</Text>)}
-    {categories.isPending && <ActivityIndicator accessibilityLabel="Loading categories" />}
+    {!household.data && (household.isPending ? <ActivityIndicator accessibilityLabel="Loading household" /> : household.isError ? <View style={styles.card}>
+      <Text accessibilityRole="alert" style={styles.error}>{household.error.message}</Text>
+      <Action title="Retry household" disabled={household.isFetching} onPress={() => { household.refetch(); }} />
+    </View> : <Text style={styles.body}>Create or join a household before adding inventory.</Text>)}
+    {!!household.data && categories.isPending && <ActivityIndicator accessibilityLabel="Loading categories" />}
     {categories.isError && <View style={styles.card}><Text accessibilityRole="alert" style={styles.error}>{categories.error.message}</Text><Action title="Retry categories" disabled={categories.isFetching} onPress={() => { categories.refetch(); }} /></View>}
 
   </FoundationScreen>;

@@ -18,7 +18,9 @@ async function chooseDate(label: string, date: string) {
 
 jest.mock('@/lib/session', () => ({ api: jest.fn(), ApiError: class extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status; } } }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner' } } }) }));
-jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: { id: 'home' }, isPending: false, isError: false }) }));
+let mockHouseholdState: 'ready' | 'error' | 'empty' = 'ready';
+const mockRetryHousehold = jest.fn();
+jest.mock('@/features/auth/HouseholdScreen', () => ({ useHousehold: () => ({ data: mockHouseholdState === 'ready' ? { id: 'home' } : null, isPending: false, isError: mockHouseholdState === 'error', error: new Error('Unable to load household.'), refetch: mockRetryHousehold }) }));
 const categories: Category[] = [{ id: 'other', name: 'Other', key: 'other', isSystemDefined: true }, { id: 'dairy', name: 'Dairy', key: 'dairy', isSystemDefined: true }];
 const milk: InventoryItem = {
   id: 'milk', householdId: 'home', name: 'Milk', categoryId: 'dairy', quantity: 1, unit: 'bottle',
@@ -42,7 +44,26 @@ async function setupEditor() {
   await render(<QueryClientProvider client={client}><EditInventoryScreen /></QueryClientProvider>);
   return client;
 }
-beforeEach(() => { jest.clearAllMocks(); mockCanGoBack.mockReturnValue(true); items = []; mockRouteParams = {}; jest.mocked(api).mockImplementation(defaultApi); });
+beforeEach(() => { jest.clearAllMocks(); mockHouseholdState = 'ready'; mockCanGoBack.mockReturnValue(true); items = []; mockRouteParams = {}; jest.mocked(api).mockImplementation(defaultApi); });
+test('Add Inventory shows household failures with retry instead of an endless category spinner', async () => {
+  mockHouseholdState = 'error';
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  await render(<QueryClientProvider client={client}><AddInventoryScreen /></QueryClientProvider>);
+  expect(screen.getByText('Unable to load household.')).toBeTruthy();
+  expect(screen.queryByLabelText('Loading categories')).toBeNull();
+  expect(screen.queryByText('Create or join a household before adding inventory.')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Retry household' }));
+  expect(mockRetryHousehold).toHaveBeenCalledTimes(1);
+  client.clear();
+});
+test('Add Inventory with no household offers setup guidance without a disabled-query spinner', async () => {
+  mockHouseholdState = 'empty';
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  await render(<QueryClientProvider client={client}><AddInventoryScreen /></QueryClientProvider>);
+  expect(screen.getByText('Create or join a household before adding inventory.')).toBeTruthy();
+  expect(screen.queryByLabelText('Loading categories')).toBeNull();
+  client.clear();
+});
 test('Inventory keeps the add form closed and opens the shared dedicated form from its floating button', async () => {
   const client = await setup();
   expect(await screen.findByText('No matching products yet')).toBeTruthy();

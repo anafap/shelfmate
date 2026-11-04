@@ -6,7 +6,7 @@ import Home from '@/app/index';
 import Shopping from '@/app/shopping';
 import { api } from '@/lib/session';
 
-jest.mock('@/lib/session', () => ({ api: jest.fn() }));
+jest.mock('@/lib/session', () => ({ api: jest.fn(), flushPendingRevocations: jest.fn(async () => {}) }));
 jest.mock('@/lib/push', () => ({ syncExistingPushDevice: jest.fn(async () => {}) }));
 jest.mock('@/features/sync/useLiveUpdates', () => ({ useLiveUpdates: () => 'Shared updates connected' }));
 jest.mock('@/features/auth/SessionProvider', () => ({ SessionProvider: ({ children }: { children: React.ReactNode }) => children, useSession: () => ({ session: { user: { id: 'owner' } } }) }));

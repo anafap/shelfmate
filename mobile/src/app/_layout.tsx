@@ -1,3 +1,4 @@
+import { usePendingRevocations } from '@/features/auth/usePendingRevocations';
 import { colors } from '@/theme/tokens';
 import { syncExistingPushDevice } from '@/lib/push';
 import { useEffect } from 'react';
@@ -23,6 +24,7 @@ export default function RootLayout() {
   );
 }
 function Navigation() {
+  usePendingRevocations();
   const { session, loading, error } = useSession();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();

@@ -12,6 +12,7 @@ beforeEach(() => {
   global.fetch = fetchMock;
   jest.mocked(SecureStore.setItemAsync).mockResolvedValue(undefined);
   jest.mocked(SecureStore.deleteItemAsync).mockResolvedValue(undefined);
+  jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
 });
 test('native sign-in persists only the refresh token and logout clears it', async () => {
   const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
@@ -36,7 +37,7 @@ test('parallel authenticated requests rotate an expired session only once', asyn
 test('network failure preserves stored credentials for retry', async () => {
   const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
   const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
-  jest.mocked(storage.getItemAsync).mockResolvedValue('saved-refresh');
+  jest.mocked(storage.getItemAsync).mockImplementation(async key => key === 'shelfmate.refresh' ? 'saved-refresh' : null);
   fetchMock.mockRejectedValue(new Error('offline'));
   await expect(client.restoreSession()).rejects.toThrow('Unable to connect');
   expect(storage.deleteItemAsync).not.toHaveBeenCalled();
@@ -44,7 +45,7 @@ test('network failure preserves stored credentials for retry', async () => {
 test('invalid refresh token clears private session state', async () => {
   const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
   const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
-  jest.mocked(storage.getItemAsync).mockResolvedValue('expired-refresh');
+  jest.mocked(storage.getItemAsync).mockImplementation(async key => key === 'shelfmate.refresh' ? 'expired-refresh' : null);
   fetchMock.mockResolvedValue(response(401, { title: 'Session expired.' }));
   await expect(client.restoreSession()).rejects.toThrow('Session expired.');
   expect(storage.deleteItemAsync).toHaveBeenCalled();
@@ -54,10 +55,10 @@ test('invalid refresh token clears private session state', async () => {
 test('simultaneous startup restores read and rotate the stored token once', async () => {
   const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
   const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
-  jest.mocked(storage.getItemAsync).mockResolvedValue('saved-refresh');
+  jest.mocked(storage.getItemAsync).mockImplementation(async key => key === 'shelfmate.refresh' ? 'saved-refresh' : null);
   fetchMock.mockResolvedValue(response(200, session));
   await Promise.all([client.restoreSession(), client.restoreSession()]);
-  expect(storage.getItemAsync).toHaveBeenCalledTimes(1);
+  expect(jest.mocked(storage.getItemAsync).mock.calls.filter(([key]) => key === 'shelfmate.refresh')).toHaveLength(1);
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
@@ -146,8 +147,54 @@ test('failed SecureStore deletion still clears local identity and writes a tombs
   const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
   fetchMock.mockResolvedValueOnce(response(200, session)).mockResolvedValueOnce(response(204));
   await client.signIn('ana@example.com', 'password');
-  jest.mocked(storage.deleteItemAsync).mockRejectedValueOnce(new Error('Storage unavailable'));
+  jest.mocked(storage.deleteItemAsync).mockImplementation(async key => { if (key === 'shelfmate.refresh') throw new Error('Storage unavailable'); });
   await expect(client.signOut()).rejects.toThrow('Storage unavailable');
   expect(client.getSession()).toBeNull();
   expect(storage.setItemAsync).toHaveBeenLastCalledWith('shelfmate.refresh', '');
+});
+
+test('offline logout persists a revocation-only token and retries without restoring the account', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
+  const stored = new Map<string, string>();
+  jest.mocked(storage.getItemAsync).mockImplementation(async key => stored.get(key) ?? null);
+  jest.mocked(storage.setItemAsync).mockImplementation(async (key, value) => { stored.set(key, value); });
+  jest.mocked(storage.deleteItemAsync).mockImplementation(async key => { stored.delete(key); });
+  fetchMock.mockResolvedValueOnce(response(200, session)).mockRejectedValueOnce(new Error('offline'));
+  await client.signIn('ana@example.com', 'password');
+  await expect(client.signOut()).rejects.toThrow('Unable to connect');
+  expect(client.getSession()).toBeNull();
+  expect(stored.has('shelfmate.refresh')).toBe(false);
+  expect(JSON.parse(stored.get('shelfmate.revocations')!)).toEqual(['refresh']);
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth/revoke'))).toHaveLength(1);
+  jest.resetModules();
+  global.fetch = fetchMock;
+  fetchMock.mockClear();
+  const restarted = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const restartedStorage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
+  jest.mocked(restartedStorage.getItemAsync).mockImplementation(async key => stored.get(key) ?? null);
+  jest.mocked(restartedStorage.deleteItemAsync).mockImplementation(async key => { stored.delete(key); });
+  fetchMock.mockResolvedValueOnce(response(204));
+  await restarted.restoreSession();
+  expect(restarted.getSession()).toBeNull();
+  expect(stored.has('shelfmate.revocations')).toBe(false);
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth/revoke'))).toHaveLength(1);
+  expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/auth/refresh'))).toBe(false);
+});
+
+test('failed revocation retry is retained while a different account signs in', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
+  const stored = new Map<string, string>([['shelfmate.revocations', JSON.stringify(['old-refresh'])]]);
+  jest.mocked(storage.getItemAsync).mockImplementation(async key => stored.get(key) ?? null);
+  jest.mocked(storage.setItemAsync).mockImplementation(async (key, value) => { stored.set(key, value); });
+  jest.mocked(storage.deleteItemAsync).mockImplementation(async key => { stored.delete(key); });
+  fetchMock.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(response(200, otherSession));
+  await client.signIn('other@example.com', 'password');
+  expect(stored.get('shelfmate.refresh')).toBe('other-refresh');
+  expect(JSON.parse(stored.get('shelfmate.revocations')!)).toEqual(['old-refresh']);
+  fetchMock.mockResolvedValueOnce(response(204));
+  await client.flushPendingRevocations();
+  expect(client.getSession()?.user.id).toBe('other');
+  expect(stored.has('shelfmate.revocations')).toBe(false);
 });

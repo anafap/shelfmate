@@ -703,6 +703,19 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.NotNull((await logoutScope.ServiceProvider.GetRequiredService<ShelfMateDbContext>().PushDevices.SingleAsync()).InvalidatedAt);
     }
     [Fact]
+    public async Task ExpiredSessionsDoNotKeepDevicesEligibleForPush()
+    {
+        var (owner, _) = await Register("owner"); await Create(owner); await EnableReminders(owner, [0]);
+        await AddProduct(owner, Product() with { ExpiryDate = new DateOnly(2026, 11, 12) });
+        clock.Advance(TimeSpan.FromDays(31));
+        await RunReminders(); Assert.Equal(0, push.Sends);
+        var login = await owner.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("owner@example.com", "LongEnoughPassword123!"));
+        owner.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<SessionResult>())!.AccessToken);
+        await EnableReminders(owner, [0]);
+        await RunReminders(); Assert.Equal(1, push.Sends);
+    }
+
+    [Fact]
     public async Task UnknownDeliveryIsNeverBlindlyRetriedAndThresholdsAreUserControlled()
     {
         var (client, _) = await Register("owner"); await Create(client); await EnableReminders(client, [1, 0]);

@@ -28,7 +28,7 @@ public sealed class ReminderDispatcher(ShelfMateDbContext db, IPushSender sender
     private async Task DispatchItem(Guid userId, Guid householdId, Guid itemId, DateOnly date, int offset, CancellationToken cancellationToken)
     {
         db.ChangeTracker.Clear();
-        if (!await db.PushDevices.AnyAsync(x => x.UserId == userId && x.InvalidatedAt == null, cancellationToken)) return;
+        if (!await db.PushDevices.AnyAsync(x => x.UserId == userId && x.InvalidatedAt == null && db.Sessions.Any(session => session.UserId == userId && session.PushDeviceId == x.Id && !session.Revoked && session.RefreshExpiresAt > clock.GetUtcNow()), cancellationToken)) return;
         var log = new NotificationLog { HouseholdId = householdId, UserId = userId, InventoryItemId = itemId, ExpiryDate = date, Offset = offset, AttemptedAt = clock.GetUtcNow() };
         db.NotificationLogs.Add(log);
         try { await db.SaveChangesAsync(cancellationToken); }
@@ -46,6 +46,8 @@ public sealed class ReminderDispatcher(ShelfMateDbContext db, IPushSender sender
         else
         {
             var devices = await db.PushDevices.FromSqlInterpolated($"SELECT * FROM \"PushDevices\" WHERE \"UserId\" = {userId} AND \"InvalidatedAt\" IS NULL ORDER BY \"Id\" FOR UPDATE").ToListAsync(cancellationToken);
+            var activeDevices = await db.Sessions.Where(session => session.UserId == userId && !session.Revoked && session.RefreshExpiresAt > clock.GetUtcNow()).Select(session => session.PushDeviceId).ToListAsync(cancellationToken);
+            devices = devices.Where(device => activeDevices.Contains(device.Id)).ToList();
             if (devices.Count == 0) log.Status = "Skipped";
             else
             {

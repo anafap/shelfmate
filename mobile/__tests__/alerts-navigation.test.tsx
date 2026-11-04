@@ -5,7 +5,7 @@ import RootLayout from '@/app/_layout';
 import Alerts from '@/app/alerts';
 import Reminders from '@/app/reminder-preferences';
 import { api } from '@/lib/session';
-jest.mock('@/lib/session', () => ({ api: jest.fn() }));
+jest.mock('@/lib/session', () => ({ api: jest.fn(), flushPendingRevocations: jest.fn(async () => {}) }));
 jest.mock('@/lib/push', () => ({ syncExistingPushDevice: jest.fn(async () => {}), registerPushDevice: jest.fn(async () => false) }));
 jest.mock('@/features/sync/useLiveUpdates', () => ({ useLiveUpdates: () => 'Shared updates connected' }));
 jest.mock('@/features/auth/SessionProvider', () => ({ SessionProvider: ({ children }: { children: React.ReactNode }) => children, useSession: () => ({ session: { user: { id: 'owner' } } }) }));

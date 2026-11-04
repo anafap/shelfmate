@@ -14,6 +14,8 @@ let refreshPromise: { generation: number; promise: Promise<Session> } | null = n
 let restorePromise: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 const key = 'shelfmate.refresh';
+const revocationKey = 'shelfmate.revocations';
+let flushPromise: Promise<void> | null = null;
 export const getSession = () => session;
 export function subscribeSession(listener: () => void) {
   listeners.add(listener);
@@ -84,7 +86,39 @@ async function refresh(expected = generation): Promise<Session> {
   }
   return refreshPromise.promise;
 }
+async function pendingRevocations(): Promise<string[]> {
+  if (Platform.OS === 'web') return webRevocations;
+  const stored = await SecureStore.getItemAsync(revocationKey);
+  if (!stored) return [];
+  const tokens: unknown = JSON.parse(stored);
+  if (!Array.isArray(tokens) || tokens.some(token => typeof token !== 'string')) throw new Error('Unable to read pending sign-outs.');
+  return tokens;
+}
+let webRevocations: string[] = [];
+function updateRevocations(update: (tokens: string[]) => string[]) {
+  const write = storageQueue.then(async () => {
+    const tokens = update(await pendingRevocations());
+    if (Platform.OS === 'web') webRevocations = tokens;
+    else if (tokens.length) await SecureStore.setItemAsync(revocationKey, JSON.stringify(tokens));
+    else await SecureStore.deleteItemAsync(revocationKey);
+  });
+  storageQueue = write.catch(() => {});
+  return write;
+}
+export async function flushPendingRevocations(): Promise<void> {
+  if (!flushPromise) {
+    flushPromise = (async () => {
+      await storageQueue;
+      for (const token of await pendingRevocations()) {
+        await raw('/auth/revoke', { refreshToken: token });
+        await updateRevocations(tokens => tokens.filter(value => value !== token));
+      }
+    })().finally(() => { flushPromise = null; });
+  }
+  return flushPromise;
+}
 export async function restoreSession() {
+  await flushPendingRevocations().catch(() => {});
   if (session) return;
   if (!restorePromise) {
     const expected = generation;
@@ -100,6 +134,8 @@ export async function restoreSession() {
 }
 export async function signIn(email: string, password: string, displayName?: string) {
   const expected = ++generation;
+  await flushPendingRevocations().catch(() => {});
+  checkGeneration(expected);
   const next = await raw<Session>(displayName === undefined ? '/auth/login' : '/auth/register', { email, password, displayName });
   await save(next, expected);
 }
@@ -126,7 +162,15 @@ export async function api<T>(path: string, body?: unknown, method = 'GET'): Prom
   }
 }
 export async function signOut() {
+  const token = refreshToken;
   const expected = ++generation;
-  try { await api('/auth/logout', undefined, 'POST'); }
+  try {
+    if (token) {
+      // Retain only the capability to revoke; never restore or refresh queued tokens.
+      await updateRevocations(tokens => [...new Set([...tokens, token])]).catch(() => {});
+      await raw('/auth/revoke', { refreshToken: token });
+      await updateRevocations(tokens => tokens.filter(value => value !== token));
+    } else await api('/auth/logout', undefined, 'POST');
+  }
   finally { if (generation === expected) await save(null, expected); }
 }

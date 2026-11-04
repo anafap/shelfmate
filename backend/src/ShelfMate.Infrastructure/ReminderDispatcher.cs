@@ -33,6 +33,7 @@ public sealed class ReminderDispatcher(ShelfMateDbContext db, IPushSender sender
         db.NotificationLogs.Add(log);
         try { await db.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" }) { db.ChangeTracker.Clear(); return; }
+        var dispatchStarted = false;
         // The durable claim survives a crash during HTTP delivery. Never blindly replay an uncertain send.
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         var item = await db.Inventory.FromSqlInterpolated($"SELECT * FROM \"Inventory\" WHERE \"Id\" = {itemId} AND \"HouseholdId\" = {householdId} FOR UPDATE").SingleAsync(cancellationToken);
@@ -53,6 +54,12 @@ public sealed class ReminderDispatcher(ShelfMateDbContext db, IPushSender sender
             {
                 var label = item.ExpiryType == "Estimated" ? "Estimated date" : "Entered expiry date";
                 var body = $"Review {item.Name}. {label}: {date:yyyy-MM-dd}. Review the item and its packaging instructions.";
+                // Eligibility is checked under locks, then Sending marks the start
+                // of an in-flight attempt. Provider latency must not lock user edits.
+                log.Status = "Sending";
+                await db.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+                dispatchStarted = true;
                 var results = await sender.Send(devices.Select(x => new PushTarget(x.Id, x.Token)).ToArray(), "ShelfMate · review an item", body, cancellationToken);
                 var tickets = results.Where(x => x.TicketId != null).ToArray();
                 log.TicketIds = tickets.Select(x => x.TicketId!).ToArray(); log.TicketDeviceIds = tickets.Select(x => x.DeviceId).ToArray();
@@ -60,11 +67,14 @@ public sealed class ReminderDispatcher(ShelfMateDbContext db, IPushSender sender
                 foreach (var result in results.Where(x => x.Status == "InvalidDevice"))
                 {
                     var device = devices.SingleOrDefault(x => x.Id == result.DeviceId);
-                    if (device is not null) device.InvalidatedAt = clock.GetUtcNow();
+                    if (device is not null)
+                        await db.PushDevices.Where(x => x.Id == device.Id && x.UserId == userId && x.Token == device.Token && x.LastSeenAt == device.LastSeenAt && x.InvalidatedAt == null)
+                            .ExecuteUpdateAsync(s => s.SetProperty(x => x.InvalidatedAt, clock.GetUtcNow()), cancellationToken);
                 }
             }
         }
-        await db.SaveChangesAsync(cancellationToken); await tx.CommitAsync(cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        if (!dispatchStarted) await tx.CommitAsync(cancellationToken);
     }
     public async Task CheckReceipts(CancellationToken cancellationToken)
     {

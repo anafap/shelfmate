@@ -866,6 +866,25 @@ public sealed class AccountTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SlowPushDeliveryDoesNotLockInventoryEditsAndKeepsSpecificMessages()
+    {
+        var (owner, _) = await Register("owner"); await Create(owner); await EnableReminders(owner);
+        var item = await AddProduct(owner, Product("Specific milk"));
+        push.Hold = true;
+        var dispatch = RunReminders();
+        try
+        {
+            await push.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var consumed = await owner.PostAsJsonAsync($"{InventoryPath}/{item.Id}/consume", new TransitionRequest(item.Version)).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(HttpStatusCode.OK, consumed.StatusCode);
+            Assert.Contains("Specific milk", push.LastBody);
+            Assert.Contains("2026-10-13", push.LastBody);
+        }
+        finally { push.Release.TrySetResult(); await dispatch; }
+        await RunReminders(); Assert.Equal(1, push.Sends);
+    }
+
+    [Fact]
     public async Task ExpiredSessionsDoNotKeepDevicesEligibleForPush()
     {
         var (owner, _) = await Register("owner"); await Create(owner); await EnableReminders(owner, [0]);
@@ -918,14 +937,20 @@ public sealed class AccountTests : IAsyncLifetime
     {
         private int sends;
         public int Sends => sends;
+        public bool Hold { get; set; }
+        public string LastBody { get; private set; } = "";
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Invalid { get; set; }
         public bool Unknown { get; set; }
         public bool InvalidReceipt { get; set; }
-        public Task<List<PushResult>> Send(IReadOnlyList<PushTarget> devices, string title, string body, CancellationToken cancellationToken)
+        public async Task<List<PushResult>> Send(IReadOnlyList<PushTarget> devices, string title, string body, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref sends);
             Assert.Contains("Review", body);
-            return Task.FromResult(devices.Select(d => new PushResult(d.DeviceId, Invalid ? "InvalidDevice" : Unknown ? "UnknownDelivery" : "Accepted", Invalid || Unknown ? null : Guid.NewGuid().ToString())).ToList());
+            LastBody = body;
+            if (Hold) { Started.TrySetResult(); await Release.Task.WaitAsync(cancellationToken); }
+            return devices.Select(d => new PushResult(d.DeviceId, Invalid ? "InvalidDevice" : Unknown ? "UnknownDelivery" : "Accepted", Invalid || Unknown ? null : Guid.NewGuid().ToString())).ToList();
         }
         public Task<Dictionary<string, string>> Receipts(string[] ticketIds, CancellationToken cancellationToken) => Task.FromResult(ticketIds.ToDictionary(x => x, _ => InvalidReceipt ? "InvalidDevice" : "ReceiptAccepted"));
     }

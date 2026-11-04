@@ -7,7 +7,7 @@ using ShelfMate.Domain;
 
 namespace ShelfMate.Infrastructure;
 
-public sealed partial class NotificationService(ShelfMateDbContext db, IAccountService accounts, IInventoryService inventory, TimeProvider clock) : INotificationService
+public sealed partial class NotificationService(ShelfMateDbContext db, IAccountService accounts, TimeProvider clock) : INotificationService
 {
     private static PreferenceRequest View(NotificationPreference p) => new(p.PushEnabled, p.InAppEnabled, p.DayOffsets, p.MutedCategoryIds, p.LocalDeliveryTime.ToString("HH:mm", CultureInfo.InvariantCulture));
     private async Task<NotificationPreference> Get(Guid userId, Guid householdId) => await db.Preferences.SingleOrDefaultAsync(x => x.UserId == userId && x.HouseholdId == householdId) ?? new() { UserId = userId, HouseholdId = householdId };
@@ -30,12 +30,11 @@ public sealed partial class NotificationService(ShelfMateDbContext db, IAccountS
     {
         var household = await accounts.CurrentHousehold(userId); var preference = await Get(userId, household.Id);
         if (!preference.InAppEnabled || preference.DayOffsets.Length == 0) return [];
-        var today = ExpiryRules.Assess(null, clock.GetUtcNow(), household.TimeZone).LocalDate;
+        var now = clock.GetUtcNow();
+        var today = ExpiryRules.Assess(null, now, household.TimeZone).LocalDate;
         var through = today.AddDays(preference.DayOffsets.Max());
-        var ids = await db.Inventory.AsNoTracking().Where(x => x.HouseholdId == household.Id && x.Status == "Active" && x.ReminderEnabled && x.ExpiryDate != null && x.ExpiryDate <= through && !preference.MutedCategoryIds.Contains(x.CategoryId)).OrderBy(x => x.ExpiryDate).ThenBy(x => x.Name).Take(100).Select(x => x.Id).ToListAsync();
-        var result = new List<InventoryResult>();
-        foreach (var id in ids) result.Add(await inventory.Get(userId, id));
-        return result.Where(x => x.Status == "Active" && x.ReminderEnabled && x.ExpiryDate != null).ToList();
+        var items = await db.Inventory.AsNoTracking().Where(x => x.HouseholdId == household.Id && x.Status == "Active" && x.ReminderEnabled && x.ExpiryDate != null && x.ExpiryDate <= through && !preference.MutedCategoryIds.Contains(x.CategoryId)).OrderBy(x => x.ExpiryDate).ThenBy(x => x.Name).ThenBy(x => x.Id).ToListAsync();
+        return items.Select(item => InventoryResults.Create(item, now, household.TimeZone, preference.DayOffsets.Max())).ToList();
     }
     private static DeviceResult View(PushDevice d) => new(d.Id, d.Platform, d.LastSeenAt, d.InvalidatedAt is null);
     public async Task<List<DeviceResult>> Devices(Guid userId)

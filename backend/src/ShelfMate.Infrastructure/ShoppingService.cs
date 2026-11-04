@@ -18,10 +18,13 @@ public sealed class ShoppingService(ShelfMateDbContext db, IAccountService accou
     public async Task<List<ShoppingResult>> List(Guid userId)
     {
         var household = await Household(userId);
-        var items = await db.Shopping.AsNoTracking().Where(x => x.HouseholdId == household).OrderBy(x => x.Status == "Purchased").ThenBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync();
-        var result = new List<ShoppingResult>();
-        foreach (var item in items) result.Add(await View(item));
-        return result;
+        return await (from item in db.Shopping.AsNoTracking()
+                      join purchaser in db.Users on item.PurchasedBy equals (Guid?)purchaser.Id into purchasers
+                      from purchaser in purchasers.DefaultIfEmpty()
+                      where item.HouseholdId == household
+                      orderby item.Status == "Purchased", item.CreatedAt, item.Id
+                      select new ShoppingResult(item.Id, item.HouseholdId, item.Name, item.CategoryId, item.Quantity, item.Unit, item.Notes, item.Status, item.CreatedBy,
+                          item.PurchasedBy, purchaser == null ? null : purchaser.DisplayName, item.PurchasedAt, item.LinkedInventoryItemId, item.CreatedAt, item.UpdatedAt, item.Version)).ToListAsync();
     }
     private async Task Apply(ShoppingItem item, SaveShoppingRequest r)
     {

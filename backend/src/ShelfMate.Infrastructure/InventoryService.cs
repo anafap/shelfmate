@@ -14,12 +14,7 @@ public sealed class InventoryService(ShelfMateDbContext db, TimeProvider clock) 
     }
     private InventoryResult View(InventoryItem item, Household household, DateTimeOffset? snapshotTime = null, int threshold = ExpiryRules.DefaultThreshold)
     {
-        var expiry = ExpiryRules.Assess(item.ExpiryDate, snapshotTime ?? clock.GetUtcNow(), household.TimeZone, threshold);
-        return new(item.Id, item.HouseholdId, item.Name, item.CategoryId, item.Quantity, item.Unit,
-            item.PurchaseDate, item.ExpiryDate, item.ExpiryType, item.StorageLocation, item.Notes,
-            item.Status, item.ReminderEnabled, item.Version, item.Status == "Active" ? expiry.Status : null,
-            item.Status == "Active" ? expiry.DaysRemaining : null, expiry.LocalDate,
-            item.CreatedBy, item.UpdatedBy, item.CreatedAt, item.UpdatedAt);
+        return InventoryResults.Create(item, snapshotTime ?? clock.GetUtcNow(), household.TimeZone, threshold);
     }
     private async Task<int> Threshold(Guid userId, Guid householdId)
     {

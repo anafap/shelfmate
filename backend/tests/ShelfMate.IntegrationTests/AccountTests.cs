@@ -1,3 +1,5 @@
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.AspNetCore.SignalR.Client;
 using System.Net;
 using System.Net.Http.Headers;
@@ -23,6 +25,7 @@ public sealed class AccountTests : IAsyncLifetime
     private readonly string database = "shelfmate_test_" + Guid.NewGuid().ToString("N");
     private readonly TestClock clock = new();
     private readonly PushStub push = new();
+    private readonly QueryCounter queries = new();
 
     public async Task InitializeAsync()
     {
@@ -41,6 +44,7 @@ public sealed class AccountTests : IAsyncLifetime
             host.UseSetting("Reminders:Enabled", "false");
             host.ConfigureServices(services =>
             {
+                services.ConfigureDbContext<ShelfMateDbContext>(options => options.AddInterceptors(queries));
                 services.RemoveAll<TimeProvider>();
                 services.AddSingleton<TimeProvider>(clock);
                 services.RemoveAll<IPushSender>();
@@ -703,6 +707,37 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.NotNull((await logoutScope.ServiceProvider.GetRequiredService<ShelfMateDbContext>().PushDevices.SingleAsync()).InvalidatedAt);
     }
     [Fact]
+    public async Task AlertsIncludeTodaysItemsBeyondOneHundredOlderRecordsInBoundedQueries()
+    {
+        var (owner, _) = await Register("owner"); await Create(owner);
+        for (var i = 0; i < 101; i++) await AddProduct(owner, Product($"Old {i}") with { ExpiryDate = new DateOnly(2026, 10, 1) });
+        var today = await AddProduct(owner, Product("Today") with { ExpiryDate = new DateOnly(2026, 10, 12) });
+        queries.Reset();
+        var alerts = (await owner.GetFromJsonAsync<List<InventoryResult>>("/api/v1/households/current/alerts"))!;
+        Assert.Equal(102, alerts.Count);
+        Assert.Equal(today.Id, alerts.Last().Id);
+        Assert.Equal(0, alerts.Last().DaysRemaining);
+        Assert.InRange(queries.Reads, 1, 5); // Includes authentication and household/preference lookup.
+    }
+
+    [Fact]
+    public async Task ShoppingHistoryResolvesAllPurchasersWithoutPerItemQueries()
+    {
+        var (owner, _) = await Register("owner"); await Create(owner);
+        for (var i = 0; i < 12; i++)
+        {
+            var response = await owner.PostAsJsonAsync("/api/v1/households/current/shopping-items", new SaveShoppingRequest($"Purchase {i}"));
+            var item = (await response.Content.ReadFromJsonAsync<ShoppingResult>())!;
+            await owner.PostAsJsonAsync($"/api/v1/households/current/shopping-items/{item.Id}/purchase", new PurchaseRequest(item.Version, true, Guid.NewGuid()));
+        }
+        queries.Reset();
+        var shopping = (await owner.GetFromJsonAsync<List<ShoppingResult>>("/api/v1/households/current/shopping-items"))!;
+        Assert.Equal(12, shopping.Count);
+        Assert.All(shopping, item => Assert.Equal("owner", item.PurchasedByName));
+        Assert.InRange(queries.Reads, 1, 4); // Includes authentication and household lookup.
+    }
+
+    [Fact]
     public async Task ExpiredSessionsDoNotKeepDevicesEligibleForPush()
     {
         var (owner, _) = await Register("owner"); await Create(owner); await EnableReminders(owner, [0]);
@@ -737,6 +772,18 @@ public sealed class AccountTests : IAsyncLifetime
         Assert.Empty((await oldUser.GetFromJsonAsync<List<DeviceResult>>("/api/v1/me/push-devices"))!);
         await oldUser.PostAsync("/api/v1/auth/logout", null);
         Assert.True((await newUser.GetFromJsonAsync<List<DeviceResult>>("/api/v1/me/push-devices"))!.Single().Active);
+    }
+
+    private sealed class QueryCounter : DbCommandInterceptor
+    {
+        private int reads;
+        public int Reads => reads;
+        public void Reset() => Interlocked.Exchange(ref reads, 0);
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref reads);
+            return ValueTask.FromResult(result);
+        }
     }
 
     private sealed class PushStub : IPushSender

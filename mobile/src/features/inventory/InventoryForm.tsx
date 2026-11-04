@@ -14,7 +14,7 @@ import { Category, InventoryItem, expiryLabel, formatProductDate, expiryTone, in
 export function Choices({ label, values, selected, onSelect, disabled, horizontal = Platform.OS !== 'web' }: {
   label: string; values: { value: string; label: string }[]; selected: string; onSelect: (value: string) => void; disabled?: boolean; horizontal?: boolean;
 }) {
-  return <View style={{ gap: 8 }}><Text style={styles.body}>{label}</Text><ScrollView horizontal={horizontal} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, flexWrap: horizontal ? 'nowrap' : 'wrap' }}>
+  return <View style={{ gap: 8 }}><Text style={styles.body}>{label}</Text><ScrollView horizontal={horizontal} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexDirection: 'row', gap: 8, flexWrap: horizontal ? 'nowrap' : 'wrap' }}>
     {values.map(v => <Pressable key={v.value} accessibilityRole="button" accessibilityLabel={`${label}: ${v.label}`} accessibilityState={{ selected: selected === v.value, disabled }} disabled={disabled} onPress={() => onSelect(v.value)} style={{ minHeight: 48, justifyContent: 'center', padding: 12, borderRadius: 24, borderWidth: 1, borderColor: selected === v.value ? colors.green : '#dce6df', backgroundColor: selected === v.value ? colors.green : colors.surface }}><Text style={{ fontSize: 16, color: selected === v.value ? colors.surface : colors.green }}>{v.label}</Text></Pressable>)}
   </ScrollView></View>;
 }

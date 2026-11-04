@@ -31,3 +31,9 @@ Existing tokens, FoundationScreen, PageHeader, shared form controls and four-tab
 Inspect all four tabs with real test inventory at 320–390-point widths, large system text, long names, and bottom safe areas. Verify add/close alignment in both states on Android and iOS. Exercise keyboard-open editors and shopping transfer, date/time dialogs, filter dropdown visibility, offline/conflict feedback, and screen-reader focus after opening/dismissing sheets. Check notification-denied and invitation-error states with a test household. The web shopping removal confirmation uses React Native Alert and needs browser verification before claiming web feature parity.
 
 These checks remain open; passing interaction tests does not establish a perfect UI.
+
+## Signed-in responsive review follow-up
+
+Inspected the real empty household Home in desktop Chrome and at a 390 × 844 responsive viewport. The plus is visibly centered; the add menu opens above the button with a centered close icon. Home counts, empty state and shopping summary remain readable at phone width.
+
+The Inventory preview exposed a web-specific defect: category choices were a vertical stack because the non-horizontal ScrollView content had wrapping without row direction. Added explicit row direction to Choices and made Inventory categories a horizontal strip on web as on native, keeping search, status/sort and results accessible without scrolling past all categories. The preview reload cleared the test session; authenticated post-fix verification and remaining tabs await sign-in. This is browser responsive inspection, not native-device acceptance.

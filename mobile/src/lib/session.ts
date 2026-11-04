@@ -8,7 +8,9 @@ export class ApiError extends Error {
 }
 let session: Session | null = null;
 let refreshToken: string | null = null;
-let refreshPromise: Promise<Session> | null = null;
+let generation = 0;
+let storageQueue = Promise.resolve();
+let refreshPromise: { generation: number; promise: Promise<Session> } | null = null;
 let restorePromise: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 const key = 'shelfmate.refresh';
@@ -33,58 +35,98 @@ async function raw<T>(path: string, body?: unknown, accessToken?: string, method
   }
   return response.status === 204 ? undefined as T : response.json();
 }
-async function save(next: Session | null) {
-  if (Platform.OS !== 'web') {
-    if (next) await SecureStore.setItemAsync(key, next.refreshToken);
-    else await SecureStore.deleteItemAsync(key);
-  }
+function checkGeneration(expected: number) {
+  if (expected !== generation) throw new ApiError(401, 'Session changed. Please try again.');
+}
+function publish(next: Session | null) {
   session = next;
   refreshToken = next?.refreshToken ?? null;
   listeners.forEach(listener => listener());
 }
-async function refresh(): Promise<Session> {
+async function save(next: Session | null, expected: number) {
+  checkGeneration(expected);
+  // Clearing private in-memory state must not depend on OS storage being available.
+  if (!next) publish(null);
+  const write = storageQueue.catch(() => {}).then(async () => {
+    if (Platform.OS === 'web' || expected !== generation) return;
+    if (next) await SecureStore.setItemAsync(key, next.refreshToken);
+    else {
+      try { await SecureStore.deleteItemAsync(key); }
+      catch (error) {
+        // A tombstone prevents restoring the old token if deletion alone failed.
+        await SecureStore.setItemAsync(key, '');
+        throw error;
+      }
+    }
+  });
+  storageQueue = write.catch(() => {});
+  await write;
+  checkGeneration(expected);
+  if (next) publish(next);
+}
+async function refresh(expected = generation): Promise<Session> {
+  checkGeneration(expected);
   if (!refreshToken) throw new ApiError(401, 'Please sign in again.');
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
+  if (!refreshPromise || refreshPromise.generation !== expected) {
+    const token = refreshToken;
+    const promise = (async () => {
       try {
-        const next = await raw<Session>('/auth/refresh', { refreshToken });
-        await save(next);
+        const next = await raw<Session>('/auth/refresh', { refreshToken: token });
+        checkGeneration(expected);
+        await save(next, expected);
         return next;
       } catch (error) {
-        if (error instanceof ApiError && error.status === 401) await save(null);
+        if (expected === generation && error instanceof ApiError && error.status === 401) await save(null, expected);
         throw error;
-      } finally { refreshPromise = null; }
+      } finally { if (refreshPromise?.generation === expected) refreshPromise = null; }
     })();
+    refreshPromise = { generation: expected, promise };
   }
-  return refreshPromise;
+  return refreshPromise.promise;
 }
 export async function restoreSession() {
   if (session) return;
   if (!restorePromise) {
+    const expected = generation;
     restorePromise = (async () => {
-      if (Platform.OS !== 'web') refreshToken = await SecureStore.getItemAsync(key);
-      if (refreshToken) await refresh();
+      await storageQueue;
+      const stored = Platform.OS !== 'web' ? await SecureStore.getItemAsync(key) : refreshToken;
+      checkGeneration(expected);
+      refreshToken = stored;
+      if (refreshToken) await refresh(expected);
     })().finally(() => { restorePromise = null; });
   }
   await restorePromise;
 }
 export async function signIn(email: string, password: string, displayName?: string) {
+  const expected = ++generation;
   const next = await raw<Session>(displayName === undefined ? '/auth/login' : '/auth/register', { email, password, displayName });
-  await save(next);
+  await save(next, expected);
 }
 export async function api<T>(path: string, body?: unknown, method = 'GET'): Promise<T> {
   if (!session) throw new ApiError(401, 'Please sign in again.');
+  const expected = generation;
   let current = session;
-  if (Date.parse(current.expiresAt) <= Date.now() + 30000) current = await refresh();
-  try { return await raw<T>(path, body, current.accessToken, method); }
+  if (Date.parse(current.expiresAt) <= Date.now() + 30000) current = await refresh(expected);
+  checkGeneration(expected);
+  try {
+    const result = await raw<T>(path, body, current.accessToken, method);
+    checkGeneration(expected);
+    return result;
+  }
   catch (error) {
+    checkGeneration(expected);
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
     if (!session) throw new ApiError(401, 'Please sign in again.');
-    current = session.accessToken !== current.accessToken ? session : await refresh();
-    return raw<T>(path, body, current.accessToken, method);
+    current = session.accessToken !== current.accessToken ? session : await refresh(expected);
+    checkGeneration(expected);
+    const result = await raw<T>(path, body, current.accessToken, method);
+    checkGeneration(expected);
+    return result;
   }
 }
 export async function signOut() {
+  const expected = ++generation;
   try { await api('/auth/logout', undefined, 'POST'); }
-  finally { await save(null); }
+  finally { if (generation === expected) await save(null, expected); }
 }

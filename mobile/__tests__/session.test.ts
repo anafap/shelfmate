@@ -87,3 +87,67 @@ test('sign-out clears local credentials even when the server is unavailable', as
   const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
   expect(storage.deleteItemAsync).toHaveBeenCalled();
 });
+
+function deferredResponse() {
+  let resolve!: (value: Response) => void;
+  const promise = new Promise<Response>(done => { resolve = done; });
+  return { promise, resolve };
+}
+const otherSession = { ...session, accessToken: 'other-access', refreshToken: 'other-refresh', user: { ...session.user, id: 'other' } };
+
+test('an old-account write is never retried under a new account', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const pending = deferredResponse();
+  fetchMock.mockResolvedValueOnce(response(200, session)).mockReturnValueOnce(pending.promise)
+    .mockResolvedValueOnce(response(204)).mockResolvedValueOnce(response(200, otherSession));
+  await client.signIn('ana@example.com', 'password');
+  const write = client.api('/households/current/inventory', { name: 'Private draft' }, 'POST');
+  const rejected = expect(write).rejects.toThrow('Session changed');
+  await client.signOut();
+  await client.signIn('other@example.com', 'password');
+  pending.resolve(response(401));
+  await rejected;
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/inventory'))).toHaveLength(1);
+  expect(client.getSession()?.user.id).toBe('other');
+});
+
+test('an old-account successful response is discarded after switching accounts', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const pending = deferredResponse();
+  fetchMock.mockResolvedValueOnce(response(200, session)).mockReturnValueOnce(pending.promise)
+    .mockResolvedValueOnce(response(200, otherSession));
+  await client.signIn('ana@example.com', 'password');
+  const read = client.api('/households/current');
+  const rejected = expect(read).rejects.toThrow('Session changed');
+  await client.signIn('other@example.com', 'password');
+  pending.resolve(response(200, { name: 'Private old household' }));
+  await rejected;
+});
+
+test.each([200, 401])('a delayed refresh response (%s) cannot replace or clear a new account', async status => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const pending = deferredResponse();
+  fetchMock.mockResolvedValueOnce(response(200, { ...session, expiresAt: '2000-01-01' }))
+    .mockReturnValueOnce(pending.promise).mockResolvedValueOnce(response(200, otherSession));
+  await client.signIn('ana@example.com', 'password');
+  const read = client.api('/me');
+  const rejected = expect(read).rejects.toThrow();
+  await client.signIn('other@example.com', 'password');
+  pending.resolve(response(status, session));
+  await rejected;
+  expect(client.getSession()?.user.id).toBe('other');
+  const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
+  expect(storage.setItemAsync).toHaveBeenLastCalledWith('shelfmate.refresh', 'other-refresh');
+  expect(storage.deleteItemAsync).not.toHaveBeenCalled();
+});
+
+test('failed SecureStore deletion still clears local identity and writes a tombstone', async () => {
+  const client = jest.requireActual<typeof import('@/lib/session')>('@/lib/session');
+  const storage = jest.requireMock<typeof import('expo-secure-store')>('expo-secure-store');
+  fetchMock.mockResolvedValueOnce(response(200, session)).mockResolvedValueOnce(response(204));
+  await client.signIn('ana@example.com', 'password');
+  jest.mocked(storage.deleteItemAsync).mockRejectedValueOnce(new Error('Storage unavailable'));
+  await expect(client.signOut()).rejects.toThrow('Storage unavailable');
+  expect(client.getSession()).toBeNull();
+  expect(storage.setItemAsync).toHaveBeenLastCalledWith('shelfmate.refresh', '');
+});

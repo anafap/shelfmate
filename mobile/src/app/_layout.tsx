@@ -12,6 +12,7 @@ import { StatusBar, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SyncStatusContext } from '@/features/sync/SyncStatusContext';
 import { HouseholdHeader } from '@/features/auth/HouseholdHeader';
+import { ScreenFocus } from '@/components/ScreenFocus';
 
 const queryClient = new QueryClient();
 export default function RootLayout() {
@@ -37,7 +38,7 @@ function Navigation() {
     <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
     <SyncStatusContext.Provider value={syncStatus}>
     <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}><HouseholdHeader /></SafeAreaView>
-    <Tabs screenOptions={{
+    <Tabs screenLayout={({ children, options }) => <ScreenFocus title={options.title ?? 'ShelfMate'}>{children}</ScreenFocus>} screenOptions={{
     headerShown: false,
     tabBarPosition: width >= 1000 ? 'left' : 'bottom',
     tabBarActiveTintColor: colors.green, tabBarInactiveTintColor: colors.muted,

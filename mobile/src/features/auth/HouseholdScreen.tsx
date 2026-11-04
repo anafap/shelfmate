@@ -8,6 +8,7 @@ import { FoundationScreen } from '@/components/FoundationScreen';
 import { api, ApiError, signOut } from '@/lib/session';
 import { Action, Field, styles } from './AccountScreen';
 import { useSession } from './SessionProvider';
+import { TimeZonePicker } from '@/components/TimeZonePicker';
 
 export type Household = { id: string; name: string; timeZone: string; ownerUserId: string };
 type Member = { userId: string; displayName: string; role: string; joinedAt: string };
@@ -25,7 +26,7 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
   const household = useHousehold(); const queryClient = useQueryClient();
   const [setupMode, setSetupMode] = useState<'create' | 'join' | null>(null);
   const [name, setName] = useState('');
-  const [zone, setZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Bahrain');
+  const [zone, setZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   const [token, setToken] = useState(''); const [email, setEmail] = useState('');
   const [revokeId, setRevokeId] = useState<string | null>(null);
   const [invite, setInvite] = useState<Invite | null>(null); const [message, setMessage] = useState('');
@@ -56,7 +57,7 @@ export function HouseholdScreen({ settings = false, safeAreaTop = false }: { set
         <Text accessibilityRole="header" style={pageUi.sectionTitle}>{setupMode === 'create' ? 'Create a household' : 'Join a household'}</Text>
         {setupMode === 'create' ? <>
           <Field label="Household name" value={name} onChangeText={setName} maxLength={80} editable={!action.isPending} autoFocus />
-          <Field label="Household time zone" value={zone} onChangeText={setZone} autoCapitalize="none" autoCorrect={false} editable={!action.isPending} />
+          <TimeZonePicker value={zone} onChange={setZone} disabled={action.isPending} />
           <Text style={pageUi.body}>Confirm your local time zone. Expiry dates and reminders use this calendar.</Text>
           <Action fullWidth title="Create household" disabled={action.isPending || !name.trim() || !zone.trim()} onPress={() => run(() => api('/households', { name: name.trim(), timeZone: zone.trim() }, 'POST'))} />
         </> : <>

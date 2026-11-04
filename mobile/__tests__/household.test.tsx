@@ -19,7 +19,10 @@ test('new account can create a household with an explicit timezone', async () =>
   await fireEvent.press(await screen.findByRole('button', { name: 'Create a household' }));
   await screen.findByLabelText('Household name');
   await fireEvent.changeText(screen.getByLabelText('Household name'), 'Our home');
-  await fireEvent.changeText(screen.getByLabelText('Household time zone'), 'Asia/Bahrain');
+  await fireEvent.press(screen.getByRole('button', { name: /^Household time zone:/ }));
+  await fireEvent.changeText(screen.getByLabelText('Search city or time zone'), 'bahrain');
+  await fireEvent.press(screen.getByRole('button', { name: 'Select Bahrain · Asia' }));
+  expect(screen.queryByLabelText('Search city or time zone')).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith('/households', { name: 'Our home', timeZone: 'Asia/Bahrain' }, 'POST'));
   client.clear();

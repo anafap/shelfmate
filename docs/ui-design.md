@@ -1,5 +1,7 @@
 # ShelfMate UI baseline
 
+Bug-review update (2026-11-04): household creation now uses a searchable city/time-zone picker with readable labels and an explicitly displayed IANA selection. Choices are bundled for offline use; selecting a result preserves the existing household API. Web routes now focus a named main-content region on entry and return visits. Existing screen composition and shared control tokens are preserved. Automated interaction/DOM tests, lint, typecheck, and web export passed; native and live-browser accessibility acceptance remain outstanding.
+
 Add/Edit category follow-up (2026-11-04): category selection is an always-visible, full-width horizontal chip row using the Inventory filter's `Choices` component, replacing the editor dropdown and transfer form's expandable category grid. The selected chip uses the same green treatment; taps change the saved category directly. Storage location sits below the row.
 
 The [2026-11-04 consistency audit](ui-consistency-audit.md) lists the gaps found across every screen and sheet and the corrections made to align them with Home. Home's existing ink/green/muted/border values are now the shared palette; `controlStyles.ts` supplies the common field treatment. The historical verification records below refer to their stated revisions.

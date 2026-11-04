@@ -1,5 +1,7 @@
 # Decisions
 
+- 2026-11-04: Add/Edit Inventory category selection uses the same `Choices` chips as the Inventory category filter, in a full-width horizontal scrolling row on every platform. The shared transfer form uses the same selector. Preserve category order, default Other, selected/disabled accessibility states, and existing save payloads; Unit keeps its existing select control.
+
 - 2026-11-04: Ana requested Home's UI language throughout the app. Adopt Home's existing ink/green/muted/border values in shared tokens and reuse compact headers, panels, and field/button treatments across secondary screens and sheets. Keep Home/Inventory composition and business flows intact. Date/time/text/select control frames share `mobile/src/theme/controlStyles.ts`; see [the consistency audit](ui-consistency-audit.md) for corrected gaps and unverified device checks.
 
 - 2026-10-12: Begin with phase 0 because the workspace contains only AGENTS.md. Preserve the existing GitHub license and history.

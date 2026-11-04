@@ -11,10 +11,10 @@ import { Action, Field, styles } from '@/features/auth/AccountScreen';
 import { api, ApiError } from '@/lib/session';
 import { Category, InventoryItem, expiryLabel, formatProductDate, expiryTone, inventoryPath } from './types';
 
-export function Choices({ label, values, selected, onSelect, disabled }: {
-  label: string; values: { value: string; label: string }[]; selected: string; onSelect: (value: string) => void; disabled?: boolean;
+export function Choices({ label, values, selected, onSelect, disabled, horizontal = Platform.OS !== 'web' }: {
+  label: string; values: { value: string; label: string }[]; selected: string; onSelect: (value: string) => void; disabled?: boolean; horizontal?: boolean;
 }) {
-  return <View style={{ gap: 8 }}><Text style={styles.body}>{label}</Text><ScrollView horizontal={Platform.OS !== 'web'} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, flexWrap: Platform.OS === 'web' ? 'wrap' : 'nowrap' }}>
+  return <View style={{ gap: 8 }}><Text style={styles.body}>{label}</Text><ScrollView horizontal={horizontal} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, flexWrap: horizontal ? 'nowrap' : 'wrap' }}>
     {values.map(v => <Pressable key={v.value} accessibilityRole="button" accessibilityLabel={`${label}: ${v.label}`} accessibilityState={{ selected: selected === v.value, disabled }} disabled={disabled} onPress={() => onSelect(v.value)} style={{ minHeight: 48, justifyContent: 'center', padding: 12, borderRadius: 24, borderWidth: 1, borderColor: selected === v.value ? colors.green : '#dce6df', backgroundColor: selected === v.value ? colors.green : colors.surface }}><Text style={{ fontSize: 16, color: selected === v.value ? colors.surface : colors.green }}>{v.label}</Text></Pressable>)}
   </ScrollView></View>;
 }
@@ -56,7 +56,6 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
 }) {
   const [name, setName] = useState(item?.name ?? initial?.name ?? ''); const [quantity, setQuantity] = useState(String(item?.quantity ?? initial?.quantity ?? 1));
   const [categoryId, setCategory] = useState(item?.categoryId ?? initial?.categoryId ?? categories.find(c => c.key === 'other')?.id ?? categories[0]?.id ?? '');
-  const [categoryOpen, setCategoryOpen] = useState(false);
   const insets = useContext(SafeAreaInsetsContext);
   const [unit, setUnit] = useState(item?.unit ?? initial?.unit ?? 'piece');
   const [expiryDate, setExpiry] = useState(item?.expiryDate ?? '');
@@ -79,6 +78,7 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   const conflict = !!item && save.error instanceof ApiError && save.error.status === 409;
   const selectedCategory = categories.find(c => c.id === categoryId)?.name ?? 'Choose category';
+  const categoryField = <Choices label="Category" values={categories.map(category => ({ value: category.id, label: category.name }))} selected={categoryId} onSelect={setCategory} disabled={busy} horizontal />;
   const nameField = <Field label="Product name" value={name} onChangeText={value => { setName(value); onNameChange?.(value); }} maxLength={120} editable={!busy} style={styles.input} />;
   const quantityField = <Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" maxLength={14} editable={!busy} style={styles.input} />;
   const expiryFields = <>
@@ -119,10 +119,8 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
           <View style={ui.fieldColumn}>{quantityField}</View>
           <View style={ui.fieldColumn}><FormSelect label="Unit" value={unit} values={['piece', 'g', 'kg', 'ml', 'l', 'pack', 'bottle', 'box'].map(value => ({ value, label: value }))} disabled={busy} onSelect={setUnit} /></View>
         </View>
-        <View style={ui.fieldRow}>
-          <View style={ui.fieldColumn}><FormSelect label="Category" value={categoryId} values={categories.map(category => ({ value: category.id, label: category.name }))} disabled={busy} onSelect={setCategory} /></View>
-          <View style={ui.fieldColumn}><Field label="Storage location" value={location} onChangeText={setLocation} maxLength={80} editable={!busy} style={styles.input} /></View>
-        </View>
+        {categoryField}
+        <Field label="Storage location" value={location} onChangeText={setLocation} maxLength={80} editable={!busy} />
         {expiryFields}
         {!item && <Action variant="secondary" title={details ? 'Hide optional details' : 'More details'} disabled={busy} onPress={() => setDetails(!details)} />}
         {(item || details) && optionalFields}
@@ -140,13 +138,7 @@ export function InventoryForm({ item, categories, onSaved, onCancel, onReload, i
   return <View style={ui.editorFields}>
     <Field label="Product name" value={name} onChangeText={value => { setName(value); onNameChange?.(value); }} maxLength={120} editable={!busy} />
     <Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" maxLength={14} editable={!busy} />
-    <View style={{ gap: 8 }}>
-      <Text style={styles.body}>Category</Text>
-      <Action variant="secondary" title={`${selectedCategory}${!item && categoryId === categories.find(c => c.key === 'other')?.id ? ' (default)' : ''} · Change`} label={`Category: ${selectedCategory}`} disabled={busy} onPress={() => setCategoryOpen(!categoryOpen)} />
-      {categoryOpen && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {[...categories].sort((a, b) => Number(b.key === 'other') - Number(a.key === 'other')).map(c => <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Choose ${c.name}`} accessibilityState={{ selected: categoryId === c.id, disabled: busy }} disabled={busy} onPress={() => { setCategory(c.id); setCategoryOpen(false); }} style={{ minHeight: 48, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: categoryId === c.id ? colors.green : '#dce6df', backgroundColor: categoryId === c.id ? colors.green : colors.surface, justifyContent: 'center' }}><Text style={{ color: categoryId === c.id ? colors.surface : colors.green, fontSize: 15 }}>{c.name}</Text></Pressable>)}
-      </View>}
-    </View>
+    {categoryField}
     {expiryFields}
     <Action variant="secondary" title={details ? 'Hide optional details' : 'Unit & more details'} disabled={busy} onPress={() => setDetails(!details)} />
     {details && <>

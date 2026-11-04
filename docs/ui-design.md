@@ -1,5 +1,7 @@
 # ShelfMate UI baseline
 
+Add/Edit category follow-up (2026-11-04): category selection is an always-visible, full-width horizontal chip row using the Inventory filter's `Choices` component, replacing the editor dropdown and transfer form's expandable category grid. The selected chip uses the same green treatment; taps change the saved category directly. Storage location sits below the row.
+
 The [2026-11-04 consistency audit](ui-consistency-audit.md) lists the gaps found across every screen and sheet and the corrections made to align them with Home. Home's existing ink/green/muted/border values are now the shared palette; `controlStyles.ts` supplies the common field treatment. The historical verification records below refer to their stated revisions.
 
 Verification for the 2026-11-04 consistency change: `npm run lint`, `npm run typecheck`, all 15 mobile suites / 96 tests, skill validation, and `CI=1 npx expo export --platform all --output-dir dist/ui-consistency` passed. Android, iOS, and web bundles include all current screen routes. Computer Use permissions were unavailable, so rendered comparison, native/large-text acceptance, and an updated signed APK remain outstanding.

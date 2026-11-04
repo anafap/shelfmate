@@ -61,9 +61,12 @@ test('dedicated Add to Inventory saves the existing form and returns to Inventor
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
   await render(<QueryClientProvider client={client}><AddInventoryScreen /></QueryClientProvider>);
   await fireEvent.changeText(await screen.findByLabelText('Product name'), 'Rice');
+  expect(screen.getByRole('button', { name: 'Category: Other', selected: true })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Category: Dairy' }));
+  expect(screen.getByRole('button', { name: 'Category: Dairy', selected: true })).toBeTruthy();
   jest.mocked(api).mockImplementation(async (path, body, method) => method === 'POST' ? ({ id: 'rice', ...(body as object) } as never) : defaultApi(path));
   await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
-  await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ name: 'Rice', expiryDate: null, expiryType: 'Unknown' }), 'POST'));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ name: 'Rice', categoryId: 'dairy', expiryDate: null, expiryType: 'Unknown' }), 'POST'));
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/inventory'));
   client.clear();
 });
@@ -95,10 +98,10 @@ test('optional purchase details preserve unknown expiry and chosen quantity/cate
 test('category can be changed directly without opening optional details', async () => {
   const client = await setup(true);
   await fireEvent.changeText(screen.getByLabelText('Product name'), 'Milk');
-  await fireEvent.press(screen.getByRole('button', { name: 'Category: Other' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Choose Dairy' }));
-  expect(screen.getByRole('button', { name: 'Category: Dairy' })).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Choose Dairy' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Category: Other', selected: true })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Category: Dairy' }));
+  expect(screen.getByRole('button', { name: 'Category: Dairy', selected: true })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Category: Other', selected: false })).toBeTruthy();
   await fireEvent.press(screen.getByRole('button', { name: 'Save product' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith(inventoryPath, expect.objectContaining({ categoryId: 'dairy' }), 'POST'));
   client.clear();
@@ -142,7 +145,7 @@ test('dedicated editor prepopulates fields and Cancel or Back does not update th
   expect(screen.getByLabelText('Product name').props.value).toBe('Milk');
   expect(screen.getByLabelText('Quantity').props.value).toBe('1');
   expect(screen.getByRole('button', { name: 'Unit: bottle' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Category: Dairy' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Category: Dairy', selected: true })).toBeTruthy();
   expect(screen.getByLabelText('Storage location').props.value).toBe('Fridge');
   expect(screen.getByText('Edit Product')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
@@ -164,8 +167,10 @@ test('dedicated editor saves changes with existing validation and update API', a
   await fireEvent.changeText(screen.getByLabelText('Quantity'), '2');
   await fireEvent.press(screen.getByRole('button', { name: 'Unit: bottle' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Choose pack' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Category: Other' }));
+  expect(screen.getByRole('button', { name: 'Category: Other', selected: true })).toBeTruthy();
   await fireEvent.press(screen.getByRole('button', { name: 'Save Changes' }));
-  await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk`, expect.objectContaining({ name: 'Oat milk', quantity: 2, unit: 'pack', categoryId: 'dairy', storageLocation: 'Fridge', version: 'v1' }), 'PATCH'));
+  await waitFor(() => expect(api).toHaveBeenCalledWith(`${inventoryPath}/milk`, expect.objectContaining({ name: 'Oat milk', quantity: 2, unit: 'pack', categoryId: 'other', storageLocation: 'Fridge', version: 'v1' }), 'PATCH'));
   await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
   client.clear();
 });

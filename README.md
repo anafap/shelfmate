@@ -8,7 +8,7 @@ Phases 1–6 are implemented: separate accounts and households without a fixed m
 
 ## Local setup
 
-Prerequisites: .NET 10 SDK, Node 22 LTS, npm, Docker with Compose, and a simulator or Expo Go for SDK 57. Install the EF migration CLI before setup: `dotnet tool install --global dotnet-ef --version 10.0.10`.
+Prerequisites: .NET 10 SDK with .NET/ASP.NET Core runtime 10.0.14 or later supported patches, Node 22 LTS, npm, Docker with Compose, and a simulator or Expo Go for SDK 57. Install the EF migration CLI before setup: `dotnet tool install --global dotnet-ef --version 10.0.14`.
 
 ```sh
 cp .env.example .env
@@ -48,6 +48,7 @@ dotnet format backend/ShelfMate.sln --verify-no-changes
 cd mobile
 npm run typecheck
 npm run lint
+npm run audit:security
 npm test
 npx expo export --platform all
 ```
@@ -59,7 +60,7 @@ curl --fail http://localhost:5050/api/v1/health/live
 curl --fail http://localhost:5050/api/v1/health/ready
 ```
 
-`docker compose --env-file .env -f infra/compose.yaml stop` preserves local data. Integration tests replace database availability for deterministic HTTP assertions and also check missing configuration. CI starts real PostgreSQL and verifies API readiness separately. Phase 1 includes an explicit account/household migration. Install the EF CLI with `dotnet tool install --global dotnet-ef --version 10.0.10`. Account integration tests require `SHELFMATE_TEST_CONNECTION` with CREATE DATABASE permission; they create and remove isolated test databases.
+`docker compose --env-file .env -f infra/compose.yaml stop` preserves local data. Integration tests replace database availability for deterministic HTTP assertions and also check missing configuration. CI starts real PostgreSQL and verifies API readiness separately. Phase 1 includes an explicit account/household migration. Install the EF CLI with `dotnet tool install --global dotnet-ef --version 10.0.14`. Account integration tests require `SHELFMATE_TEST_CONNECTION` with CREATE DATABASE permission; they create and remove isolated test databases.
 
 ## Architecture and next milestone
 
@@ -67,7 +68,9 @@ See [architecture](docs/architecture.md), [API](docs/api.md), [decisions](docs/d
 
 Next milestone: install the updated internal APK and verify three or more accounts sharing one household. The membership migration was applied to the local device-test database on 2026-10-21. Two-phone collaboration was confirmed by Ana; actual push delivery remains unverified. Then close release-hardening gaps and decide whether the target is private APK distribution or Google Play. The full milestone contract and future work are in AGENTS.md.
 
-Latest recorded automated verification (2026-10-20): 60 backend tests and 87 mobile tests pass; backend build/formatting, mobile typecheck/lint, and Android/iOS/web export pass. On 2026-10-21, the updated Android release build completed and `apksigner` verified its signature matches the prior APK. Its embedded LAN API URL and updated invitation screen were checked; a local build manifest is at `.local/artifacts/ShelfMate-internal.build.json`. The membership migration was applied to the local device-test database on 2026-10-21; the updated API passed liveness/readiness checks and returned 401 for unauthenticated member-list requests. The APK is ignored local output at `.local/artifacts/ShelfMate-internal.apk`; it is not committed. Two-phone collaboration acceptance was confirmed by Ana on 2026-10-20; this does not establish push delivery. The npm dependency audit has unresolved advisories and remains release-hardening work.
+Security hardening verification (2026-11-04): 74 backend tests and 118 mobile tests passed; the backend Release build has zero warnings/errors; formatting, mobile lint/typecheck, and final Android/iOS/web exports passed. Clean installation reproduces the dependency patches. NuGet reports no vulnerable packages. Raw npm audit retains 16 low package entries for the locally patched deepmerge advisory; the security gate verifies that patch and rejects unreviewed advisories. See the [remediation review](docs/security-design-code-review.md) and [disabled email-verification proposal](docs/email-verification-review.md). Apply the three new migrations before API deployment; the existing APK and running API have not been replaced. Native automatic session restoration and specific push messages are preserved. Documentation remains uncommitted pending Ana’s explicit instruction.
+
+Historical verification (2026-10-20): 60 backend tests and 87 mobile tests pass; backend build/formatting, mobile typecheck/lint, and Android/iOS/web export pass. On 2026-10-21, the updated Android release build completed and `apksigner` verified its signature matches the prior APK. Its embedded LAN API URL and updated invitation screen were checked; a local build manifest is at `.local/artifacts/ShelfMate-internal.build.json`. The membership migration was applied to the local device-test database on 2026-10-21; the updated API passed liveness/readiness checks and returned 401 for unauthenticated member-list requests. The APK is ignored local output at `.local/artifacts/ShelfMate-internal.apk`; it is not committed. Two-phone collaboration acceptance was confirmed by Ana on 2026-10-20; this does not establish push delivery. Refer to the current security-hardening verification above for dependency status.
 
 Manual acceptance: Ana confirmed two-phone collaboration works on 2026-10-20. Verify the updated build with three or more household members; session restart persistence and real push delivery require explicit confirmation. Push delivery needs a configured Expo project and Firebase credentials; in-app alerts remain available. Public release additionally needs production HTTPS hosting, privacy/store materials, and Play Console release setup.
 

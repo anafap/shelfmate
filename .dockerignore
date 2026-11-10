@@ -1,0 +1,6 @@
+.git
+.local
+.env*
+mobile
+**/bin
+**/obj

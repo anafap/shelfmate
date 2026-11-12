@@ -1,3 +1,5 @@
+import countries from './timeZoneCountries.json';
+
 // IANA tzdb 2026d zone.tab (public domain), bundled for offline/native search.
 // Zone identifiers only; the server/OS supplies calendar and daylight-saving rules.
 export const timeZones: string[] = [
@@ -422,7 +424,23 @@ export const timeZones: string[] = [
   'UTC'
 ];
 
+// Country associations: public-domain IANA tzdb 2026d zone.tab. English
+// region labels use Intl.DisplayNames. Keep metadata aligned with the list above.
 export function timeZoneLabel(zone: string) {
-  const parts = zone.replace(/_/g, ' ').split('/');
-  return parts.length === 1 ? parts[0] : `${parts.pop()} · ${parts.join(' / ')}`;
+  const city = zone.split('/').pop()!.replace(/_/g, ' ');
+  const country = (countries as Record<string, string>)[zone];
+  if (country) return country !== city ? `${city} · ${country}` : city;
+  const region = zone.split('/').slice(0, -1).join(' / ');
+  return region ? `${city} · ${region}` : city;
+}
+
+function normalize(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[_/]/g, ' ');
+}
+export function searchTimeZones(zones: string[], search: string) {
+  const terms = normalize(search).trim().split(/\s+/);
+  return zones.filter(zone => {
+    const text = normalize(`${zone} ${timeZoneLabel(zone)}`);
+    return terms.every(term => text.includes(term));
+  });
 }

@@ -1,16 +1,17 @@
 import { usePendingRevocations } from '@/features/auth/usePendingRevocations';
 import { colors } from '@/theme/tokens';
 import { syncExistingPushDevice } from '@/lib/push';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLiveUpdates } from '@/features/sync/useLiveUpdates';
 import { SessionProvider, useSession } from '@/features/auth/SessionProvider';
 import { AccountScreen } from '@/features/auth/AccountScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Tabs } from 'expo-router';
+import { router, Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { StatusBar, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SyncStatusContext } from '@/features/sync/SyncStatusContext';
+import { HouseholdScreen, useHousehold } from '@/features/auth/HouseholdScreen';
 import { HouseholdHeader } from '@/features/auth/HouseholdHeader';
 import { ScreenFocus } from '@/components/ScreenFocus';
 
@@ -27,13 +28,27 @@ export default function RootLayout() {
 function Navigation() {
   usePendingRevocations();
   const { session, loading, error } = useSession();
+  const household = useHousehold();
+  const wasSettingUp = useRef(false);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const syncStatus = useLiveUpdates(session?.user.id);
   useEffect(() => {
     if (session?.user.id) void syncExistingPushDevice().catch(() => {});
   }, [session?.user.id]);
+  useEffect(() => {
+    if (!session) { wasSettingUp.current = false; return; }
+    if (household.data === null) wasSettingUp.current = true;
+    if (household.data && wasSettingUp.current) {
+      wasSettingUp.current = false;
+      router.replace('/');
+    }
+  }, [session, household.data]);
   if (loading || error || !session) return <AccountScreen />;
+  if (!household.data) return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+    <SafeAreaView edges={['top']} style={{ flex: 1 }}><ScreenFocus title="Your household"><HouseholdScreen /></ScreenFocus></SafeAreaView>
+  </View>;
   return <View style={{ flex: 1, backgroundColor: colors.background }}>
     <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
     <SyncStatusContext.Provider value={syncStatus}>

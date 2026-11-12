@@ -42,3 +42,8 @@ On Android and iOS, review 320–390-point widths, larger system text, long prod
 - Verified package `com.anafap.shelfmate`, ARM64/ARMv7 native libraries, embedded LAN API URL, and updated household invitation copy. The APK and build manifest remain ignored local artifacts under `.local/artifacts/`.
 - Applied the household-membership migration to the local device-test database. The updated API passed liveness/readiness checks over LAN and rejected unauthenticated member-list access with 401.
 - Mobile typecheck, lint, and all 96 tests passed again. The navigation fixture emitted a non-failing warning for its omitted reminder-preferences route; the app route exists. No phones were connected, so installation, three-account acceptance, native visual review, and real push delivery remain unverified for this build.
+
+
+## Create Household setup baseline — 2026-11-12
+
+Ana requested a production redesign after reviewing the three Create Household screenshots. Setup now gates all household tabs and global header controls until membership exists. Use one compact heading, a two-field card, full-width primary action and a lightweight return action. Time-zone selection opens a full-screen keyboard-aware modal with country/city/IANA search and virtualized rows; never insert the result list into the form. Show a friendly location label, retain the IANA value internally, and explain its role in expiry dates and reminders. Preserve drafts and provide inline validation, pending feedback and recoverable errors. See [the audit and verification record](household-setup-review.md).

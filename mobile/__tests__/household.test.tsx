@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Platform } from 'react-native';
 import { HouseholdScreen } from '@/features/auth/HouseholdScreen';
-import { api } from '@/lib/session';
+import { api, signOut } from '@/lib/session';
 
 jest.mock('@/lib/session', () => ({ api: jest.fn(), signOut: jest.fn(), ApiError: class extends Error {} }));
 jest.mock('@/features/auth/SessionProvider', () => ({ useSession: () => ({ session: { user: { id: 'owner', displayName: 'Ana' } } }) }));
@@ -20,9 +20,9 @@ test('new account can create a household with an explicit timezone', async () =>
   await screen.findByLabelText('Household name');
   await fireEvent.changeText(screen.getByLabelText('Household name'), 'Our home');
   await fireEvent.press(screen.getByRole('button', { name: /^Household time zone:/ }));
-  await fireEvent.changeText(screen.getByLabelText('Search city or time zone'), 'bahrain');
-  await fireEvent.press(screen.getByRole('button', { name: 'Select Bahrain · Asia' }));
-  expect(screen.queryByLabelText('Search city or time zone')).toBeNull();
+  await fireEvent.changeText(screen.getByLabelText('Search city, country or time zone'), 'bahrain');
+  await fireEvent.press(screen.getByRole('button', { name: 'Select Bahrain' }));
+  expect(screen.queryByLabelText('Search city, country or time zone')).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith('/households', { name: 'Our home', timeZone: 'Asia/Bahrain' }, 'POST'));
   client.clear();
@@ -127,6 +127,45 @@ test('setup reveals one form at a time and preserves a draft when returning to c
   await fireEvent.press(screen.getByRole('button', { name: 'Back to household choices' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Create a household' }));
   expect(screen.getByLabelText('Household name').props.value).toBe('Our home');
+  expect(jest.mocked(api).mock.calls.some(([, , method]) => method === 'POST')).toBe(false);
+  client.clear();
+});
+
+test('create validates whitespace, locks repeated submissions and retains details after failure', async () => {
+  let rejectRequest!: (error: Error) => void;
+  jest.mocked(api).mockImplementation(async path => {
+    if (path === '/households') return new Promise((_resolve, reject) => { rejectRequest = reject; });
+    return null as never;
+  });
+  const client = await setup();
+  await fireEvent.press(await screen.findByRole('button', { name: 'Create a household' }));
+  await fireEvent.changeText(screen.getByLabelText('Household name'), '   ');
+  await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
+  expect(screen.getByText('Enter a household name.')).toBeTruthy();
+  expect(jest.mocked(api).mock.calls.some(([, , method]) => method === 'POST')).toBe(false);
+  await fireEvent.changeText(screen.getByLabelText('Household name'), '  Our home  ');
+  await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
+  expect(screen.getByRole('button', { name: 'Creating household…', disabled: true })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Creating household…' }));
+  await fireEvent(screen.getByLabelText('Household name'), 'submitEditing');
+  expect(jest.mocked(api).mock.calls.filter(([path]) => path === '/households')).toHaveLength(1);
+  expect(api).toHaveBeenCalledWith('/households', expect.objectContaining({ name: 'Our home' }), 'POST');
+  rejectRequest(new Error('Unable to connect.'));
+  expect(await screen.findByText('Unable to connect.')).toBeTruthy();
+  expect(screen.getByLabelText('Household name').props.value).toBe('  Our home  ');
+  await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
+  await waitFor(() => expect(jest.mocked(api).mock.calls.filter(([path]) => path === '/households')).toHaveLength(2));
+  rejectRequest(new Error('Still offline.'));
+  await screen.findByText('Still offline.');
+  client.clear();
+});
+
+
+test('an account without a household can sign out from setup choices', async () => {
+  jest.mocked(api).mockResolvedValue(null);
+  const client = await setup();
+  await fireEvent.press(await screen.findByRole('button', { name: 'Sign out' }));
+  await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
   expect(jest.mocked(api).mock.calls.some(([, , method]) => method === 'POST')).toBe(false);
   client.clear();
 });
